@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/anuramat/arbitrage/internal/exchanges"
+	_ "github.com/anuramat/arbitrage/internal/exchanges/gate"
 )
 
 func main() {
@@ -20,7 +21,7 @@ func main() {
 
 	// start update goroutines
 	for _, exchange := range exchanges.Exchanges {
-		go exchange.StartUpdates(ctx, wg)
+		go exchange.Subscribe(ctx, wg)
 	}
 
 	// TODO start goroutine for arbitrage

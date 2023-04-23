@@ -4,26 +4,27 @@ package models
 import (
 	"context"
 	"sync"
-	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type OrderBookEntry struct {
-	Price  float64
-	Amount float64
+	Price  decimal.Decimal
+	Amount decimal.Decimal
 }
 
 // XXX: optimize? fixed size array, saves time on memory allocation
 type OrderBook struct {
 	Bids      []OrderBookEntry
 	Asks      []OrderBookEntry
-	Timestamp time.Time
+	Timestamp int64
 	sync.RWMutex
 }
 
 type BestPrice struct {
-	Bid       float64
-	Ask       float64
-	Timestamp time.Time
+	Bid       decimal.Decimal
+	Ask       decimal.Decimal
+	Timestamp int64
 	sync.RWMutex
 }
 
@@ -50,5 +51,5 @@ type ExchangeMarkets map[string]*Market
 type AllMarkets map[string][]*Market
 
 type Exchange interface {
-	StartUpdates(context.Context, *sync.WaitGroup)
+	Subscribe(context.Context, *sync.WaitGroup)
 }

@@ -2,12 +2,14 @@
 // different exchanges. One exchange per file.
 package exchanges
 
-import "github.com/anuramat/arbitrage/internal/models"
+import (
+	"github.com/anuramat/arbitrage/internal/models"
+)
 
-var allMarkets models.AllMarkets
+var AllMarkets models.AllMarkets
 var Exchanges []models.Exchange
 
 func init() {
-	allMarkets = make(models.AllMarkets)
+	AllMarkets = make(models.AllMarkets)
 	Exchanges = []models.Exchange{}
 }
