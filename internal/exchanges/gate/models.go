@@ -1,11 +1,11 @@
 package gate
 
 // response error codes
-const (
-	invalidFormat = 1 + iota
-	invalidArgs
-	serverSideError
-)
+// const (
+// 	invalidFormat = 1 + iota
+// 	invalidArgs
+// 	serverSideError
+// )
 
 type genericResponse struct {
 	Time    int64  `json:"time"`
