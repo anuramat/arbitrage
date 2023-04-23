@@ -26,35 +26,17 @@ func (msg *message) send(c *websocket.Conn) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("SENDING: ", string(msgByte)) // TODO remove
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
 func makeConnection() *websocket.Conn {
-	// TODO check this code
 	u := url.URL{Scheme: "wss", Host: "api.gateio.ws", Path: "/ws/v4/"}
-	websocket.DefaultDialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true}
+	websocket.DefaultDialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true} // TODO might be insecure?
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		panic(err)
 	}
 	return c
-}
-
-type Ticker struct {
-	Time    int64  `json:"time"`
-	TimeMs  int64  `json:"time_ms"`
-	Channel string `json:"channel"`
-	Event   string `json:"event"`
-	Result  struct {
-		TimeMs       int64  `json:"t"`
-		UpdateID     int64  `json:"u"`
-		CurrencyPair string `json:"s"`
-		BidPrice     string `json:"b"`
-		AskPrice     string `json:"a"`
-		BidAmount    string `json:"B"`
-		AskAmount    string `json:"A"`
-	} `json:"result"`
 }
 
 func (r gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
@@ -69,15 +51,27 @@ func (r gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
 	if err != nil {
 		panic(err)
 	}
+
 	// receive subscription confirmation
 	_, msg, err := c.ReadMessage()
 	if err != nil {
 		// TODO better error handling
 		fmt.Println(err)
 	}
-	fmt.Printf("subscription result: %s\n", msg) // TODO change
+	response := &subscriptionResponse{}
+	err = json.Unmarshal(msg, response)
+	if err != nil {
+		// TODO better error handling
+		fmt.Println(err)
+	}
+	if response.Error != nil {
+		// TODO better error handling
+		fmt.Println(response.Error)
+		return
+	}
+
 	for {
-		spew.Dump(r.markets)
+		spew.Dump(r.markets) // TODO remove
 		select {
 		case <-ctx.Done():
 			c.Close()
@@ -89,10 +83,10 @@ func (r gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
 				fmt.Println(err)
 			}
 			// TODO check if error in message
-			var ticker Ticker
+			var ticker tickerUpdate
 			err = json.Unmarshal(msg, &ticker)
 			if err != nil {
-				fmt.Println("Error unmarshalling message: ", err) // TODO change
+				fmt.Println("Error unmarshalling message: ", err) // TODO error handling
 			}
 			// check if ticker is for a currency pair we are interested in
 			if _, ok := r.markets[ticker.Result.CurrencyPair]; !ok {

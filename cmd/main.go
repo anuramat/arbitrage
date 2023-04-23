@@ -21,6 +21,7 @@ func main() {
 
 	// start update goroutines
 	for _, exchange := range exchanges.Exchanges {
+		wg.Add(1)
 		go exchange.Subscribe(ctx, wg)
 	}
 

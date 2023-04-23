@@ -10,13 +10,22 @@ import (
 
 type gate struct {
 	markets       models.ExchangeMarkets
-	currencyPairs []string // TODO move to config, get it from there instead
+	currencyPairs []string // active currency pairs
 }
 
 func init() {
 	gate := &gate{}
 	gate.markets = make(models.ExchangeMarkets)
-	gate.currencyPairs = []string{"BTC_USDT", "ETH_USDT"} // TODO move to config
+	currencyPairs := []string{"BTC_USDT"} // TODO move to config
+	// only add the currency pairs that are in config on two or more exchanges
+	for _, currencyPair := range currencyPairs {
+		if _, ok := exchanges.CurrencyPairs[currencyPair]; ok {
+			gate.currencyPairs = append(gate.currencyPairs, currencyPair)
+		}
+	}
+	if len(gate.currencyPairs) == 0 {
+		return
+	}
 	for _, currencyPair := range gate.currencyPairs {
 		market := &models.Market{}
 		market.Exchange = gate
@@ -27,6 +36,10 @@ func init() {
 }
 
 func (r gate) Subscribe(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	if len(r.currencyPairs) == 0 {
+		return
+	}
 	wg.Add(1)
 	go r.priceUpdater(ctx, wg)
 }
