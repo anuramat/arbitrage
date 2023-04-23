@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/k0kubun/pp"
 	"github.com/shopspring/decimal"
 )
 
@@ -76,11 +77,14 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 			c.Close()
 			return
 		default:
+			// read ws message
 			_, msg, err := c.ReadMessage()
+			pp.Println(r.Markets)
 			if err != nil {
 				fmt.Println("Error reading ws message:", err)
 				return
 			}
+			// parse json
 			var ticker tickerUpdate
 			err = json.Unmarshal(msg, &ticker)
 			if err != nil {
@@ -88,14 +92,15 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 				return
 			}
 			// check if ticker is for a currency pair we are interested in
-			if _, ok := r.markets[ticker.Result.CurrencyPair]; !ok {
+			if _, ok := r.Markets[ticker.Result.CurrencyPair]; !ok {
 				continue
 			}
-			r.markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Lock()
-			r.markets[ticker.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(ticker.Result.AskPrice)
-			r.markets[ticker.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(ticker.Result.BidPrice)
-			r.markets[ticker.Result.CurrencyPair].BestPrice.Timestamp = ticker.Result.TimeMs
-			r.markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
+			// update values
+			r.Markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Lock()
+			r.Markets[ticker.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(ticker.Result.AskPrice)
+			r.Markets[ticker.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(ticker.Result.BidPrice)
+			r.Markets[ticker.Result.CurrencyPair].BestPrice.Timestamp = ticker.Result.TimeMs
+			r.Markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
 		}
 	}
 }

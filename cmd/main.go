@@ -24,7 +24,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 	// read configs, start exchange goroutines
-	exchanges := map[string]models.Exchange{"gate": gate.New()}
+	exchanges := map[string]models.Exchange{"gate": &gate.Gate{}}
 	for name, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice(name + ".currencyPairs")
 		if len(currencyPairs) == 0 {
