@@ -39,7 +39,7 @@ func makeConnection() *websocket.Conn {
 	return c
 }
 
-func (r gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
+func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	c := makeConnection()

@@ -52,4 +52,6 @@ type AllMarkets map[string][]*Market
 
 type Exchange interface {
 	Subscribe(context.Context, *sync.WaitGroup)
+	GetMarkets() *ExchangeMarkets
+	NewMarket(string) *Market
 }

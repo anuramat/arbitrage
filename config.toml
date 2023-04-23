@@ -1,2 +1,2 @@
-[exchanges.okx]
+[gate]
 currencyPairs = ["BTC_USDT", "ETH_USDT", "LTC_USDT"]
