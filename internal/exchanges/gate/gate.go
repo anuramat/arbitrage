@@ -23,7 +23,7 @@ func (r *Gate) GetMarkets() *models.ExchangeMarkets {
 }
 
 func (r *Gate) NewMarket(currencyPair string) *models.Market {
-	newMarket := &models.Market{}
+	newMarket := &models.Market{Exchange: r, OrderBook: models.OrderBook{}, BestPrice: models.BestPrice{}}
 	r.currencyPairs = append(r.currencyPairs, currencyPair)
 	r.markets[currencyPair] = newMarket
 	return newMarket

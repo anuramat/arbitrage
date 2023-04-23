@@ -41,12 +41,13 @@ func makeConnection() *websocket.Conn {
 
 func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-
 	c := makeConnection()
+	defer c.Close()
 
 	// subscribe to prices
 	t := time.Now().Unix()
 	orderBookMsg := message{t, "spot.book_ticker", "subscribe", r.currencyPairs}
+	fmt.Println(orderBookMsg)
 	err := orderBookMsg.send(c)
 	if err != nil {
 		panic(err)

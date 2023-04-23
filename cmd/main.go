@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -22,7 +21,6 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	allMarkets := make(models.AllMarkets)
-	currencyPairsCounts := map[string]int{}
 
 	viper.SetConfigFile("config.toml")
 	err := viper.ReadInConfig()
@@ -30,44 +28,14 @@ func main() {
 		panic(err)
 	}
 
-	// allowed exchanges
 	exchanges := map[string]models.Exchange{"gate": gate.New()}
-
-	for _, section := range viper.AllKeys() {
-		if _, ok := exchanges[section]; !ok {
-			fmt.Printf("\"%s\" is not a valid exchange name", section)
-			continue
-		}
-		subViper := viper.Sub(section)
-		currencyPairs := subViper.GetStringSlice("currencyPairs")
-		for _, currencyPair := range currencyPairs {
-			if _, ok := currencyPairsCounts[currencyPair]; !ok {
-				currencyPairsCounts[currencyPair] = 1
-			} else {
-				currencyPairsCounts[currencyPair]++
-			}
-		}
-	}
-
-	allowedCurrencyPairs := map[string]struct{}{}
-	for currencyPair, count := range currencyPairsCounts {
-		if count > 1 {
-			allowedCurrencyPairs[currencyPair] = struct{}{}
-		}
-	}
 
 	for name, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice(name + ".currencyPairs")
-		exchangeAllowedCurrencyPairs := []string{}
-		for _, currencyPair := range currencyPairs {
-			if _, ok := allowedCurrencyPairs[currencyPair]; ok {
-				exchangeAllowedCurrencyPairs = append(exchangeAllowedCurrencyPairs, currencyPair)
-			}
-		}
-		if len(exchangeAllowedCurrencyPairs) == 0 {
+		if len(currencyPairs) == 0 {
 			continue
 		}
-		for _, currencyPair := range exchangeAllowedCurrencyPairs {
+		for _, currencyPair := range currencyPairs {
 			newMarket := exchange.NewMarket(currencyPair)
 			allMarkets[currencyPair] = append(allMarkets[currencyPair], newMarket)
 		}
