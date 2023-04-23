@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
 )
@@ -31,7 +30,7 @@ func (msg *message) send(c *websocket.Conn) error {
 
 func makeConnection() *websocket.Conn {
 	u := url.URL{Scheme: "wss", Host: "api.gateio.ws", Path: "/ws/v4/"}
-	websocket.DefaultDialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true} // TODO might be insecure?
+	websocket.DefaultDialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true} // XXX might be insecure?
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		panic(err)
@@ -39,40 +38,39 @@ func makeConnection() *websocket.Conn {
 	return c
 }
 
-func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
+func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPairs []string) {
 	defer wg.Done()
+
 	c := makeConnection()
 	defer c.Close()
 
 	// subscribe to prices
 	t := time.Now().Unix()
-	orderBookMsg := message{t, "spot.book_ticker", "subscribe", r.currencyPairs}
-	fmt.Println(orderBookMsg)
+	orderBookMsg := message{t, "spot.book_ticker", "subscribe", currencyPairs}
 	err := orderBookMsg.send(c)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error sending ws message:", err)
 	}
 
 	// receive subscription confirmation
 	_, msg, err := c.ReadMessage()
 	if err != nil {
-		// TODO better error handling
-		fmt.Println(err)
+		fmt.Println("Error reading ws message:", err)
+		return
 	}
 	response := &subscriptionResponse{}
 	err = json.Unmarshal(msg, response)
 	if err != nil {
-		// TODO better error handling
-		fmt.Println(err)
+		fmt.Println("Error unmarshalling message: ", err)
+		return
 	}
 	if response.Error != nil {
-		// TODO better error handling
-		fmt.Println(response.Error)
+		fmt.Println("Error subscribing:", response.Error)
 		return
 	}
 
+	// receive price updates
 	for {
-		spew.Dump(r.markets) // TODO remove
 		select {
 		case <-ctx.Done():
 			c.Close()
@@ -80,14 +78,14 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup) {
 		default:
 			_, msg, err := c.ReadMessage()
 			if err != nil {
-				// TODO better error handling
-				fmt.Println(err)
+				fmt.Println("Error reading ws message:", err)
+				return
 			}
-			// TODO check if error in message
 			var ticker tickerUpdate
 			err = json.Unmarshal(msg, &ticker)
 			if err != nil {
-				fmt.Println("Error unmarshalling message: ", err) // TODO error handling
+				fmt.Println("Error unmarshalling message: ", err)
+				return
 			}
 			// check if ticker is for a currency pair we are interested in
 			if _, ok := r.markets[ticker.Result.CurrencyPair]; !ok {

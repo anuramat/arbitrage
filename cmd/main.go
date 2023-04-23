@@ -13,13 +13,6 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-
-	// this channel will receive a signal when the program is interrupted
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
 	allMarkets := make(models.AllMarkets)
 
 	viper.SetConfigFile("config.toml")
@@ -28,28 +21,25 @@ func main() {
 		panic(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	// read configs, start exchange goroutines
 	exchanges := map[string]models.Exchange{"gate": gate.New()}
-
 	for name, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice(name + ".currencyPairs")
 		if len(currencyPairs) == 0 {
 			continue
 		}
-		for _, currencyPair := range currencyPairs {
-			newMarket := exchange.NewMarket(currencyPair)
-			allMarkets[currencyPair] = append(allMarkets[currencyPair], newMarket)
-		}
-	}
-
-	// start update goroutines
-	for _, exchange := range exchanges {
+		exchange.MakeMarkets(currencyPairs, &allMarkets)
 		wg.Add(1)
-		go exchange.Subscribe(ctx, wg)
+		go exchange.Subscribe(ctx, wg, currencyPairs)
 	}
 
-	// TODO start goroutine for arbitrage
+	// arbitrage goes here
 
-	// wait for a termination signal, then close goroutines
+	// Ctrl-C will close the program gracefully
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 	cancel()
 	wg.Wait()
