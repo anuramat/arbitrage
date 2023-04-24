@@ -1,23 +1,23 @@
 package okx
 
-type loginRequest struct {
-	Op   string `json:"op"`
-	Args []struct {
-		APIKey     string `json:"apiKey"`
-		Passphrase string `json:"passphrase"`
-		Timestamp  string `json:"timestamp"`
-		Sign       string `json:"sign"`
-	} `json:"args"`
-}
+// type loginRequest struct {
+// 	Op   string `json:"op"`
+// 	Args []struct {
+// 		APIKey     string `json:"apiKey"`
+// 		Passphrase string `json:"passphrase"`
+// 		Timestamp  string `json:"timestamp"`
+// 		Sign       string `json:"sign"`
+// 	} `json:"args"`
+// }
 
-type loginResponse struct {
-	Event string `json:"event"`
-	Code  string `json:"code"`
-	Msg   string `json:"msg"`
-	Data  []struct {
-		APIKey string `json:"apiKey"`
-	} `json:"data"`
-}
+// type loginResponse struct {
+// 	Event string `json:"event"`
+// 	Code  string `json:"code"`
+// 	Msg   string `json:"msg"`
+// 	Data  []struct {
+// 		APIKey string `json:"apiKey"`
+// 	} `json:"data"`
+// }
 
 type subscribeRequest struct {
 	Op   string             `json:"op"`
