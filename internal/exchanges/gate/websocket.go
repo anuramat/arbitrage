@@ -2,7 +2,6 @@ package gate
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -10,16 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/k0kubun/pp"
 	"github.com/shopspring/decimal"
 )
-
-type message struct {
-	Time    int64    `json:"time"`
-	Channel string   `json:"channel"`
-	Event   string   `json:"event"`
-	Payload []string `json:"payload"`
-}
 
 func (msg *message) send(c *websocket.Conn) error {
 	msgByte, err := json.Marshal(msg)
@@ -31,7 +22,6 @@ func (msg *message) send(c *websocket.Conn) error {
 
 func makeConnection() *websocket.Conn {
 	u := url.URL{Scheme: "wss", Host: "api.gateio.ws", Path: "/ws/v4/"}
-	websocket.DefaultDialer.TLSClientConfig = &tls.Config{RootCAs: nil, InsecureSkipVerify: true} // XXX might be insecure?
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		panic(err)
@@ -79,7 +69,6 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 		default:
 			// read ws message
 			_, msg, err := c.ReadMessage()
-			pp.Println(r.Markets)
 			if err != nil {
 				fmt.Println("Error reading ws message:", err)
 				return
@@ -90,10 +79,6 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 			if err != nil {
 				fmt.Println("Error unmarshalling message: ", err)
 				return
-			}
-			// check if ticker is for a currency pair we are interested in
-			if _, ok := r.Markets[ticker.Result.CurrencyPair]; !ok {
-				continue
 			}
 			// update values
 			r.Markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Lock()

@@ -7,6 +7,13 @@ package gate
 // 	serverSideError
 // )
 
+type message struct {
+	Time    int64    `json:"time"`
+	Channel string   `json:"channel"`
+	Event   string   `json:"event"`
+	Payload []string `json:"payload"`
+}
+
 type genericResponse struct {
 	Time    int64  `json:"time"`
 	TimeMs  int64  `json:"time_ms"`

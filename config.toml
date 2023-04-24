@@ -1,2 +1,5 @@
 [gate]
 currencyPairs = ["BTC_USDT", "ETH_USDT", "LTC_USDT"]
+
+[okx]
+currencyPairs = ["BTC_USDT", "ETH_USDT", "LTC_USDT"]
