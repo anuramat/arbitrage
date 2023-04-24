@@ -12,6 +12,7 @@ import (
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
 	"github.com/anuramat/arbitrage/internal/exchanges/okx"
 	"github.com/anuramat/arbitrage/internal/models"
+	"github.com/anuramat/arbitrage/internal/strategy"
 	"github.com/spf13/viper"
 )
 
@@ -46,6 +47,8 @@ func main() {
 	fmt.Println("Exchanges started")
 
 	// arbitrage goes here
+	wg.Add(1)
+	go strategy.DetectArbitrage(ctx, wg, &allMarkets)
 
 	// Ctrl-C will close the program gracefully
 	c := make(chan os.Signal, 1)

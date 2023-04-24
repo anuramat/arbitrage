@@ -79,6 +79,5 @@ func (r *Okx) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPair
 			r.Markets[currencyPair].BestPrice.Timestamp, _ = strconv.ParseInt(update.Data[0].Ts, 10, 64)
 			r.Markets[currencyPair].BestPrice.RWMutex.Unlock()
 		}
-
 	}
 }
