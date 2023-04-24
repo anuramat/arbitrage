@@ -22,7 +22,7 @@ func makeConnection() *websocket.Conn {
 	return c
 }
 
-func (msg *SubscribeRequest) send(c *websocket.Conn) error {
+func (msg *subscribeRequest) send(c *websocket.Conn) error {
 	msgByte, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -37,12 +37,12 @@ func (r *Okx) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPair
 	defer c.Close()
 
 	// subscribe to prices
-	args := []SubscriptionArgs{}
+	args := []subscriptionArgs{}
 	for _, currencyPair := range currencyPairs {
 		currencyPair = strings.Replace(currencyPair, "_", "-", 1)
-		args = append(args, SubscriptionArgs{Channel: "bbo-tbt", InstID: currencyPair})
+		args = append(args, subscriptionArgs{Channel: "bbo-tbt", InstID: currencyPair})
 	}
-	request := SubscribeRequest{Op: "subscribe", Args: args}
+	request := subscribeRequest{Op: "subscribe", Args: args}
 	request.send(c)
 
 	// receive subscription confirmation
@@ -65,7 +65,7 @@ func (r *Okx) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPair
 				return
 			}
 			// parse json
-			var update BookSnapshotResponse
+			var update bookSnapshotUpdate
 			err = json.Unmarshal(msg, &update)
 			if err != nil {
 				fmt.Println("Error unmarshalling message: ", err)

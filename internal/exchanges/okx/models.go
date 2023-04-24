@@ -1,6 +1,6 @@
 package okx
 
-type LoginRequest struct {
+type loginRequest struct {
 	Op   string `json:"op"`
 	Args []struct {
 		APIKey     string `json:"apiKey"`
@@ -10,7 +10,7 @@ type LoginRequest struct {
 	} `json:"args"`
 }
 
-type LoginResponse struct {
+type loginResponse struct {
 	Event string `json:"event"`
 	Code  string `json:"code"`
 	Msg   string `json:"msg"`
@@ -19,23 +19,23 @@ type LoginResponse struct {
 	} `json:"data"`
 }
 
-type SubscribeRequest struct {
+type subscribeRequest struct {
 	Op   string             `json:"op"`
-	Args []SubscriptionArgs `json:"args"`
+	Args []subscriptionArgs `json:"args"`
 }
 
-type SubscriptionArgs struct {
+type subscriptionArgs struct {
 	Channel string `json:"channel"`
 	InstID  string `json:"instId"`
 }
 
-type BookSnapshotResponse struct {
-	Arg    SubscriptionArgs   `json:"arg"`
+type bookSnapshotUpdate struct {
+	Arg    subscriptionArgs   `json:"arg"`
 	Action string             `json:"action"`
-	Data   []BookSnapshotData `json:"data"`
+	Data   []bookSnapshotData `json:"data"`
 }
 
-type BookSnapshotData struct {
+type bookSnapshotData struct {
 	Asks     [][]string `json:"asks"`
 	Bids     [][]string `json:"bids"`
 	Ts       string     `json:"ts"`

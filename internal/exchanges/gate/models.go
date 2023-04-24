@@ -7,7 +7,7 @@ package gate
 // 	serverSideError
 // )
 
-type message struct {
+type subscriptionRequest struct {
 	Time    int64    `json:"time"`
 	Channel string   `json:"channel"`
 	Event   string   `json:"event"`

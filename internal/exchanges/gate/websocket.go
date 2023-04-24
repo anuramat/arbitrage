@@ -12,12 +12,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (msg *message) send(c *websocket.Conn) error {
-	msgByte, err := json.Marshal(msg)
+func (request *subscriptionRequest) send(c *websocket.Conn) error {
+	msg, err := json.Marshal(request)
 	if err != nil {
 		return err
 	}
-	return c.WriteMessage(websocket.TextMessage, msgByte)
+	return c.WriteMessage(websocket.TextMessage, msg)
 }
 
 func makeConnection() *websocket.Conn {
@@ -37,8 +37,8 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 
 	// subscribe to prices
 	t := time.Now().Unix()
-	orderBookMsg := message{t, "spot.book_ticker", "subscribe", currencyPairs}
-	err := orderBookMsg.send(c)
+	request := subscriptionRequest{t, "spot.book_ticker", "subscribe", currencyPairs}
+	err := request.send(c)
 	if err != nil {
 		fmt.Println("Error sending ws message:", err)
 	}
@@ -74,18 +74,18 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 				return
 			}
 			// parse json
-			var ticker tickerUpdate
-			err = json.Unmarshal(msg, &ticker)
+			var update tickerUpdate
+			err = json.Unmarshal(msg, &update)
 			if err != nil {
 				fmt.Println("Error unmarshalling message: ", err)
 				return
 			}
 			// update values
-			r.Markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Lock()
-			r.Markets[ticker.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(ticker.Result.AskPrice)
-			r.Markets[ticker.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(ticker.Result.BidPrice)
-			r.Markets[ticker.Result.CurrencyPair].BestPrice.Timestamp = ticker.Result.TimeMs
-			r.Markets[ticker.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
+			r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Lock()
+			r.Markets[update.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
+			r.Markets[update.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
+			r.Markets[update.Result.CurrencyPair].BestPrice.Timestamp = update.Result.TimeMs
+			r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
 		}
 	}
 }
