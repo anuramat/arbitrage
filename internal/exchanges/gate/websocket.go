@@ -1,11 +1,9 @@
 package gate
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -29,9 +27,7 @@ func makeConnection() *websocket.Conn {
 	return c
 }
 
-func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPairs []string) {
-	defer wg.Done()
-
+func (r *Gate) priceUpdater(currencyPairs []string) {
 	c := makeConnection()
 	defer c.Close()
 
@@ -62,30 +58,62 @@ func (r *Gate) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPai
 
 	// receive price updates
 	for {
-		select {
-		case <-ctx.Done():
-			c.Close()
+		// read ws message
+		_, msg, err := c.ReadMessage()
+		if err != nil {
+			fmt.Println("Error reading ws message:", err)
 			return
-		default:
-			// read ws message
-			_, msg, err := c.ReadMessage()
-			if err != nil {
-				fmt.Println("Error reading ws message:", err)
-				return
-			}
-			// parse json
-			var update tickerUpdate
-			err = json.Unmarshal(msg, &update)
-			if err != nil {
-				fmt.Println("Error unmarshalling message: ", err)
-				return
-			}
-			// update values
-			r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Lock()
-			r.Markets[update.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
-			r.Markets[update.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
-			r.Markets[update.Result.CurrencyPair].BestPrice.Timestamp = update.Result.TimeMs
-			r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
 		}
+		// parse json
+		var update tickerUpdate
+		err = json.Unmarshal(msg, &update)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			return
+		}
+		// update values
+		r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Lock()
+		r.Markets[update.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
+		r.Markets[update.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
+		r.Markets[update.Result.CurrencyPair].BestPrice.Timestamp = update.Result.TimeMs
+		r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
+
 	}
 }
+
+// func (r *Gate) orderBookUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPairs []string) {
+// 	defer wg.Done()
+
+// 	c := makeConnection()
+// 	defer c.Close()
+
+// 	// subscribe to order books
+// 	t := time.Now().Unix()
+// 	payload := []string{}
+// 	for _, currencyPair := range currencyPairs {
+// 		payload = append(payload, currencyPair, "100ms")
+// 	}
+// 	request := subscriptionRequest{t, "spot.order_book_update", "subscribe", payload}
+// 	err := request.send(c)
+// 	if err != nil {
+// 		fmt.Println("Error sending ws message:", err)
+// 	}
+
+// 	// receive subscription confirmation
+// 	_, msg, err := c.ReadMessage()
+// 	if err != nil {
+// 		fmt.Println("Error reading ws message:", err)
+// 		return
+// 	}
+// 	response := &subscriptionResponse{}
+// 	err = json.Unmarshal(msg, response)
+// 	if err != nil {
+// 		fmt.Println("Error unmarshalling message: ", err)
+// 		return
+// 	}
+// 	if response.Error != nil {
+// 		fmt.Println("Error subscribing:", response.Error)
+// 		return
+// 	}
+// 	fmt.Println(response)
+// }

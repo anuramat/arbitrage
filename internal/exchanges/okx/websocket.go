@@ -1,13 +1,11 @@
 package okx
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
@@ -30,9 +28,7 @@ func (msg *subscribeRequest) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
-func (r *Okx) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPairs []string) {
-	defer wg.Done()
-
+func (r *Okx) priceUpdater(currencyPairs []string) {
 	c := makeConnection()
 	defer c.Close()
 
@@ -53,31 +49,26 @@ func (r *Okx) priceUpdater(ctx context.Context, wg *sync.WaitGroup, currencyPair
 
 	// receive price updates
 	for {
-		select {
-		case <-ctx.Done():
-			c.Close()
+		// read ws message
+		_, msg, err := c.ReadMessage()
+		if err != nil {
+			fmt.Println("Error reading ws message:", err)
 			return
-		default:
-			// read ws message
-			_, msg, err := c.ReadMessage()
-			if err != nil {
-				fmt.Println("Error reading ws message:", err)
-				return
-			}
-			// parse json
-			var update bookSnapshotUpdate
-			err = json.Unmarshal(msg, &update)
-			if err != nil {
-				fmt.Println("Error unmarshalling message: ", err)
-				return
-			}
-			// update values
-			currencyPair := strings.Replace(update.Arg.InstID, "-", "_", 1)
-			r.Markets[currencyPair].BestPrice.RWMutex.Lock()
-			r.Markets[currencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
-			r.Markets[currencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
-			r.Markets[currencyPair].BestPrice.Timestamp, _ = strconv.ParseInt(update.Data[0].Ts, 10, 64)
-			r.Markets[currencyPair].BestPrice.RWMutex.Unlock()
 		}
+		// parse json
+		var update bookSnapshotUpdate
+		err = json.Unmarshal(msg, &update)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			return
+		}
+		// update values
+		currencyPair := strings.Replace(update.Arg.InstID, "-", "_", 1)
+		r.Markets[currencyPair].BestPrice.RWMutex.Lock()
+		r.Markets[currencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
+		r.Markets[currencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
+		r.Markets[currencyPair].BestPrice.Timestamp, _ = strconv.ParseInt(update.Data[0].Ts, 10, 64)
+		r.Markets[currencyPair].BestPrice.RWMutex.Unlock()
+
 	}
 }

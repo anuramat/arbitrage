@@ -1,13 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
 	"github.com/anuramat/arbitrage/internal/exchanges/okx"
@@ -29,8 +25,6 @@ func main() {
 
 	fmt.Println("Config loaded, starting exchanges...")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
 	// read configs, start exchange goroutines
 	exchanges := map[string]models.Exchange{"gate": &gate.Gate{}, "okx": &okx.Okx{}}
 	for name, exchange := range exchanges {
@@ -39,21 +33,16 @@ func main() {
 			continue
 		}
 		exchange.MakeMarkets(currencyPairs, &allMarkets)
-		wg.Add(1)
-		go exchange.Subscribe(ctx, wg, currencyPairs)
+		go exchange.Subscribe(currencyPairs)
 		fmt.Println("Started " + name + " exchange for currency pairs: " + strings.Join(currencyPairs, ", "))
 	}
 
 	fmt.Println("Exchanges started")
 
 	// arbitrage goes here
+	//wg.Add(1)
+	go strategy.DetectArbitrage(&allMarkets)
+	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go strategy.DetectArbitrage(ctx, wg, &allMarkets)
-
-	// Ctrl-C will close the program gracefully
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
-	cancel()
 	wg.Wait()
 }

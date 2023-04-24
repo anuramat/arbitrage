@@ -1,9 +1,6 @@
 package exchanges
 
 import (
-	"context"
-	"sync"
-
 	"github.com/anuramat/arbitrage/internal/models"
 )
 
@@ -11,7 +8,7 @@ type BaseExchange struct {
 	Markets models.ExchangeMarkets
 }
 
-func (r *BaseExchange) Subscribe(ctx context.Context, wg *sync.WaitGroup, currencyPairs []string) {
+func (r *BaseExchange) Subscribe(currencyPairs []string) {
 	panic("not implemented")
 }
 

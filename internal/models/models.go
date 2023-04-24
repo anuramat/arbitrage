@@ -2,7 +2,6 @@
 package models
 
 import (
-	"context"
 	"sync"
 
 	"github.com/shopspring/decimal"
@@ -51,6 +50,6 @@ type ExchangeMarkets map[string]*Market
 type AllMarkets map[string][]*Market
 
 type Exchange interface {
-	Subscribe(context.Context, *sync.WaitGroup, []string)
+	Subscribe([]string)
 	MakeMarkets([]string, *AllMarkets)
 }
