@@ -20,10 +20,14 @@ type OrderBook struct {
 	sync.RWMutex
 }
 
-type BestPrice struct {
+type BestPriceUpdate struct {
 	Bid       decimal.Decimal
 	Ask       decimal.Decimal
 	Timestamp int64
+}
+
+type BestPriceValue struct {
+	BestPriceUpdate
 	sync.RWMutex
 }
 
@@ -38,7 +42,7 @@ type BestPrice struct {
 type Market struct {
 	Exchange
 	OrderBook
-	BestPrice
+	BestPriceValue
 }
 
 // ExchangeMarkets stores market data for a specific exchange.

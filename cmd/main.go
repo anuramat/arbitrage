@@ -40,7 +40,6 @@ func main() {
 	fmt.Println("Exchanges started")
 
 	// arbitrage goes here
-	//wg.Add(1)
 	go strategy.DetectArbitrage(&allMarkets)
 	wg := sync.WaitGroup{}
 	wg.Add(1)

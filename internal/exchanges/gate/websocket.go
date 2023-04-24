@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
 )
@@ -28,19 +29,25 @@ func makeConnection() *websocket.Conn {
 }
 
 func (r *Gate) priceUpdater(currencyPairs []string) {
-	c := makeConnection()
-	defer c.Close()
+	for _, currencyPair := range currencyPairs {
+		go r.singlePriceUpdater(currencyPair)
+	}
+}
+
+func (r *Gate) singlePriceUpdater(currencyPair string) {
+	conn := makeConnection()
+	defer conn.Close()
 
 	// subscribe to prices
 	t := time.Now().Unix()
-	request := subscriptionRequest{t, "spot.book_ticker", "subscribe", currencyPairs}
-	err := request.send(c)
+	request := subscriptionRequest{t, "spot.book_ticker", "subscribe", []string{currencyPair}}
+	err := request.send(conn)
 	if err != nil {
 		fmt.Println("Error sending ws message:", err)
 	}
 
 	// receive subscription confirmation
-	_, msg, err := c.ReadMessage()
+	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		fmt.Println("Error reading ws message:", err)
 		return
@@ -57,9 +64,29 @@ func (r *Gate) priceUpdater(currencyPairs []string) {
 	}
 
 	// receive price updates
+	updateChannel := make(chan models.BestPriceUpdate)
+	go priceRelay(updateChannel, conn)
+	var lastUpdate models.BestPriceUpdate
+	market := r.Markets[currencyPair]
+	for {
+		select {
+		case update := <-updateChannel:
+			lastUpdate = update
+		default:
+			market.BestPriceValue.RWMutex.Lock()
+			market.BestPriceValue.Bid = lastUpdate.Bid
+			market.BestPriceValue.Ask = lastUpdate.Ask
+			market.BestPriceValue.Timestamp = lastUpdate.Timestamp
+			market.BestPriceValue.RWMutex.Unlock()
+		}
+
+	}
+}
+
+func priceRelay(updateChannel chan<- models.BestPriceUpdate, conn *websocket.Conn) {
 	for {
 		// read ws message
-		_, msg, err := c.ReadMessage()
+		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("Error reading ws message:", err)
 			return
@@ -72,12 +99,14 @@ func (r *Gate) priceUpdater(currencyPairs []string) {
 			return
 		}
 		// update values
-		r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Lock()
-		r.Markets[update.Result.CurrencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
-		r.Markets[update.Result.CurrencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
-		r.Markets[update.Result.CurrencyPair].BestPrice.Timestamp = update.Result.TimeMs
-		r.Markets[update.Result.CurrencyPair].BestPrice.RWMutex.Unlock()
-
+		bid, _ := decimal.NewFromString(update.Result.BidPrice)
+		ask, _ := decimal.NewFromString(update.Result.AskPrice)
+		priceUpdate := models.BestPriceUpdate{
+			Bid:       bid,
+			Ask:       ask,
+			Timestamp: update.Result.TimeMs,
+		}
+		updateChannel <- priceUpdate
 	}
 }
 

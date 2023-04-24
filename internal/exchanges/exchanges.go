@@ -16,9 +16,9 @@ func (r *BaseExchange) MakeMarkets(currencyPairs []string, allMarkets *models.Al
 	r.Markets = make(models.ExchangeMarkets)
 	for _, currencyPair := range currencyPairs {
 		newMarket := &models.Market{
-			Exchange:  r,
-			OrderBook: models.OrderBook{Bids: []models.OrderBookEntry{}, Asks: []models.OrderBookEntry{}},
-			BestPrice: models.BestPrice{},
+			Exchange:       r,
+			OrderBook:      models.OrderBook{Bids: []models.OrderBookEntry{}, Asks: []models.OrderBookEntry{}},
+			BestPriceValue: models.BestPriceValue{},
 		}
 		r.Markets[currencyPair] = newMarket
 		(*allMarkets)[currencyPair] = append((*allMarkets)[currencyPair], newMarket)

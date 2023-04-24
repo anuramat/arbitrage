@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -64,11 +63,11 @@ func (r *Okx) priceUpdater(currencyPairs []string) {
 		}
 		// update values
 		currencyPair := strings.Replace(update.Arg.InstID, "-", "_", 1)
-		r.Markets[currencyPair].BestPrice.RWMutex.Lock()
-		r.Markets[currencyPair].BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
-		r.Markets[currencyPair].BestPrice.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
-		r.Markets[currencyPair].BestPrice.Timestamp, _ = strconv.ParseInt(update.Data[0].Ts, 10, 64)
-		r.Markets[currencyPair].BestPrice.RWMutex.Unlock()
+		r.Markets[currencyPair].BestPriceValue.RWMutex.Lock()
+		r.Markets[currencyPair].BestPriceValue.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
+		r.Markets[currencyPair].BestPriceValue.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
+		r.Markets[currencyPair].BestPriceValue.Timestamp = update.Data[0].Ts
+		r.Markets[currencyPair].BestPriceValue.RWMutex.Unlock()
 
 	}
 }

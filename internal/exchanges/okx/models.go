@@ -38,6 +38,6 @@ type bookSnapshotUpdate struct {
 type bookSnapshotData struct {
 	Asks     [][]string `json:"asks"`
 	Bids     [][]string `json:"bids"`
-	Ts       string     `json:"ts"`
+	Ts       int64      `json:"ts,string"`
 	Checksum int        `json:"checksum"`
 }
