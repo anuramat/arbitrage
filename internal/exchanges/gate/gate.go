@@ -10,6 +10,4 @@ type Gate struct {
 
 func (r *Gate) Subscribe(currencyPairs []string) {
 	go r.priceUpdater(currencyPairs)
-
-	// go r.orderBookUpdater(ctx, wg, currencyPairs)
 }

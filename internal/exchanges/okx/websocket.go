@@ -28,28 +28,42 @@ func (msg *subscribeRequest) send(c *websocket.Conn) error {
 }
 
 func (r *Okx) priceUpdater(currencyPairs []string) {
-	c := makeConnection()
-	defer c.Close()
+	for _, currencyPair := range currencyPairs {
+		go r.singlePriceUpdater(currencyPair)
+	}
+}
+
+func (r *Okx) singlePriceUpdater(currencyPair string) {
+	conn := makeConnection()
+	defer conn.Close()
 
 	// subscribe to prices
-	args := []subscriptionArgs{}
-	for _, currencyPair := range currencyPairs {
-		currencyPair = strings.Replace(currencyPair, "_", "-", 1)
-		args = append(args, subscriptionArgs{Channel: "bbo-tbt", InstID: currencyPair})
-	}
-	request := subscribeRequest{Op: "subscribe", Args: args}
-	request.send(c)
+	currencyPair = strings.Replace(currencyPair, "_", "-", 1)
+	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "bbo-tbt", InstID: currencyPair}}}
+	request.send(conn)
 
 	// receive subscription confirmation
-	for range currencyPairs {
-		_, _, _ = c.ReadMessage()
-		// TODO check that all subscriptions were successful
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		fmt.Println("Error reading ws message:", err)
+		return
+	}
+	response := &subscriptionResponse{}
+	err = json.Unmarshal(msg, response)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		return
+	}
+	if response.Event == "error" {
+		fmt.Println("Error subscribing:", response.Msg)
+		return
 	}
 
 	// receive price updates
+	market := r.Markets[currencyPair]
 	for {
 		// read ws message
-		_, msg, err := c.ReadMessage()
+		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("Error reading ws message:", err)
 			return
@@ -62,12 +76,10 @@ func (r *Okx) priceUpdater(currencyPairs []string) {
 			return
 		}
 		// update values
-		currencyPair := strings.Replace(update.Arg.InstID, "-", "_", 1)
-		r.Markets[currencyPair].BestPriceValue.RWMutex.Lock()
-		r.Markets[currencyPair].BestPriceValue.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
-		r.Markets[currencyPair].BestPriceValue.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
-		r.Markets[currencyPair].BestPriceValue.Timestamp = update.Data[0].Ts
-		r.Markets[currencyPair].BestPriceValue.RWMutex.Unlock()
-
+		market.BestPrice.RWMutex.Lock()
+		market.BestPrice.Bid, _ = decimal.NewFromString(update.Data[0].Bids[0][0])
+		market.BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
+		market.BestPrice.Timestamp = update.Data[0].Ts
+		market.BestPrice.RWMutex.Unlock()
 	}
 }

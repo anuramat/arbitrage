@@ -1,36 +1,25 @@
 package okx
 
-// type loginRequest struct {
-// 	Op   string `json:"op"`
-// 	Args []struct {
-// 		APIKey     string `json:"apiKey"`
-// 		Passphrase string `json:"passphrase"`
-// 		Timestamp  string `json:"timestamp"`
-// 		Sign       string `json:"sign"`
-// 	} `json:"args"`
-// }
-
-// type loginResponse struct {
-// 	Event string `json:"event"`
-// 	Code  string `json:"code"`
-// 	Msg   string `json:"msg"`
-// 	Data  []struct {
-// 		APIKey string `json:"apiKey"`
-// 	} `json:"data"`
-// }
-
 type subscribeRequest struct {
-	Op   string             `json:"op"`
-	Args []subscriptionArgs `json:"args"`
+	Op   string            `json:"op"`
+	Args []subscriptionArg `json:"args"`
 }
 
-type subscriptionArgs struct {
+type subscriptionArg struct {
 	Channel string `json:"channel"`
 	InstID  string `json:"instId"`
 }
 
+type subscriptionResponse struct {
+	Event   string          `json:"event"`
+	Channel string          `json:"channel"`
+	Arg     subscriptionArg `json:"arg"`
+	Code    int             `json:"code,string"`
+	Msg     string          `json:"msg"`
+}
+
 type bookSnapshotUpdate struct {
-	Arg    subscriptionArgs   `json:"arg"`
+	Arg    subscriptionArg    `json:"arg"`
 	Action string             `json:"action"`
 	Data   []bookSnapshotData `json:"data"`
 }
