@@ -9,9 +9,10 @@ type Gate struct {
 }
 
 func (r *Gate) Subscribe(currencyPairs []string) {
+	// each currency pair updates in real time
 	go r.priceUpdater(currencyPairs)
 }
 
 func New() *Gate {
-	return &Gate{exchanges.BaseExchange{Name: "gate.io"}}
+	return &Gate{exchanges.BaseExchange{Name: "gate"}}
 }

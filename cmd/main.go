@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
 	"github.com/anuramat/arbitrage/internal/exchanges/okx"
+	"github.com/anuramat/arbitrage/internal/exchanges/whitebit"
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/anuramat/arbitrage/internal/strategy"
 	"github.com/spf13/viper"
@@ -26,24 +26,19 @@ func main() {
 	fmt.Println("Config loaded, starting exchanges...")
 
 	// read configs, start exchange goroutines
-	exchanges := map[string]models.Exchange{"gate": gate.New(), "okx": okx.New()}
-	for name, exchange := range exchanges {
-		currencyPairs := viper.GetStringSlice(name + ".currencyPairs")
+	exchanges := []models.Exchange{gate.New(), okx.New(), whitebit.New()}
+	for _, exchange := range exchanges {
+		currencyPairs := viper.GetStringSlice(exchange.GetName() + ".currencyPairs")
 		if len(currencyPairs) == 0 {
 			continue
 		}
 		exchange.MakeMarkets(currencyPairs, &allMarkets)
 		go exchange.Subscribe(currencyPairs)
-		fmt.Println("Started " + name + " exchange for currency pairs: " + strings.Join(currencyPairs, ", "))
+		fmt.Println("Started " + exchange.GetName() + " exchange for currency pairs: " + strings.Join(currencyPairs, ", "))
 	}
 
 	fmt.Println("Exchanges started")
 
 	// arbitrage goes here
-	go strategy.DetectArbitrage(&allMarkets)
-
-	// TODO remove
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Wait()
+	strategy.DetectArbitrage(&allMarkets)
 }

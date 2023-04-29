@@ -11,9 +11,10 @@ type Okx struct {
 // XXX might need pinger
 
 func (r *Okx) Subscribe(currencyPairs []string) {
+	// each pair updates every 10ms if there is a change
 	r.priceUpdater(currencyPairs)
 }
 
 func New() *Okx {
-	return &Okx{exchanges.BaseExchange{Name: "OKX"}}
+	return &Okx{exchanges.BaseExchange{Name: "okx"}}
 }

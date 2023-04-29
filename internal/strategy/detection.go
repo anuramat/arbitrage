@@ -16,7 +16,7 @@ func DetectArbitrage(allMarkets *models.AllMarkets) {
 		time.Sleep(1 * time.Second)
 		counter++
 		fmt.Printf("Checking for arbitrage opportunities... (%d)\n", counter)
-		highestProfit := decimal.NewFromInt(0)
+		highestProfit := decimal.Zero
 		highestProfitPair := ""
 		for currencyPair, markets := range *allMarkets {
 			markets[0].BestPrice.RLock()
