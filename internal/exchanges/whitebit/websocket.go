@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
@@ -49,7 +50,7 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 	request := subscriptionRequest{
 		ID:     requestID,
 		Method: "depth_subscribe",
-		Params: []interface{}{currencyPair, 1, "0", true},
+		Params: []any{currencyPair, 1, "0", true},
 	}
 	err = request.send(conn)
 	if err != nil {
@@ -74,7 +75,7 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 	}
 
 	// receive price updates
-	// market := r.Markets[currencyPair]
+	market := r.Markets[currencyPair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
@@ -83,7 +84,6 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 			return
 		}
 		// parse json
-		fmt.Println(string(msg))
 		update := depthUpdate{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
@@ -91,30 +91,34 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 			return
 		}
 		// enjoy some hot steamy action with unstructured data
-		orderBook := update.Params[1].(map[string]interface{})
-
-		newAsk := getNewPrice(orderBook, "asks")
-		newBid := getNewPrice(orderBook, "bids")
-
-		fmt.Println(newAsk, newBid)
+		orderBook := update.Params[1].(map[string]any)
+		newAsk := extractPrice(orderBook, "asks")
+		newBid := extractPrice(orderBook, "bids")
 
 		// update values
-		// market.BestPrice.Lock()
-		// market.BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
-		// market.BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
-		// market.BestPrice.Timestamp = update.Result.TimeMs
-		// market.BestPrice.Unlock()
+		market.BestPrice.Lock()
+		if !newAsk.IsZero() {
+			market.BestPrice.Ask = newAsk
+		}
+		if !newBid.IsZero() {
+			market.BestPrice.Bid = newBid
+		}
+		// TODO this is a pessimistic approximation of the timestamp
+		market.BestPrice.Timestamp = time.Now().UnixMilli() - 1500
+		market.BestPrice.Unlock()
 	}
 
 }
 
-func getNewPrice(orderBook map[string]interface{}, side string) decimal.Decimal {
-	if orders_i, ok := orderBook[side]; ok {
-		orders_si := orders_i.([]interface{})
-		for _, order_i := range orders_si {
-			order_si := order_i.([]interface{})
-			price, _ := decimal.NewFromString(order_si[0].(string))
-			amount, _ := decimal.NewFromString(order_si[1].(string))
+func extractPrice(orderBook map[string]any, side string) decimal.Decimal {
+	// Does all the necessary type assertions to get the updated price
+	// _a is for any, _sa is for []any
+	if orders_a, ok := orderBook[side]; ok {
+		orders_sa := orders_a.([]any)
+		for _, order_a := range orders_sa {
+			order_sa := order_a.([]any)
+			price, _ := decimal.NewFromString(order_sa[0].(string))
+			amount, _ := decimal.NewFromString(order_sa[1].(string))
 			if !amount.IsZero() {
 				return price
 			}

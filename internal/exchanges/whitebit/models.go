@@ -1,9 +1,9 @@
 package whitebit
 
 type subscriptionRequest struct {
-	ID     int64         `json:"id"`
-	Method string        `json:"method"`
-	Params []interface{} `json:"params"`
+	ID     int64  `json:"id"`
+	Method string `json:"method"`
+	Params []any  `json:"params"`
 }
 
 type subscriptionResponse struct {
@@ -18,6 +18,6 @@ type subscriptionResponse struct {
 }
 
 type depthUpdate struct {
-	Method string        `json:"method"`
-	Params []interface{} `json:"params"`
+	Method string `json:"method"`
+	Params []any  `json:"params"`
 }
