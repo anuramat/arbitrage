@@ -13,3 +13,7 @@ type Okx struct {
 func (r *Okx) Subscribe(currencyPairs []string) {
 	r.priceUpdater(currencyPairs)
 }
+
+func New() *Okx {
+	return &Okx{exchanges.BaseExchange{Name: "OKX"}}
+}

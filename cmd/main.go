@@ -26,7 +26,7 @@ func main() {
 	fmt.Println("Config loaded, starting exchanges...")
 
 	// read configs, start exchange goroutines
-	exchanges := map[string]models.Exchange{"gate": &gate.Gate{}, "okx": &okx.Okx{}}
+	exchanges := map[string]models.Exchange{"gate": gate.New(), "okx": okx.New()}
 	for name, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice(name + ".currencyPairs")
 		if len(currencyPairs) == 0 {
@@ -41,6 +41,8 @@ func main() {
 
 	// arbitrage goes here
 	go strategy.DetectArbitrage(&allMarkets)
+
+	// TODO remove
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	wg.Wait()

@@ -6,10 +6,15 @@ import (
 
 type BaseExchange struct {
 	Markets models.ExchangeMarkets
+	Name    string
 }
 
 func (r *BaseExchange) Subscribe(currencyPairs []string) {
 	panic("not implemented")
+}
+
+func (r *BaseExchange) GetName() string {
+	return r.Name
 }
 
 func (r *BaseExchange) MakeMarkets(currencyPairs []string, allMarkets *models.AllMarkets) {

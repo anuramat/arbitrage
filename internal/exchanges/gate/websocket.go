@@ -2,6 +2,7 @@ package gate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -18,13 +19,13 @@ func (request *subscriptionRequest) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msg)
 }
 
-func makeConnection() *websocket.Conn {
+func makeConnection() (*websocket.Conn, error) {
 	u := url.URL{Scheme: "wss", Host: "api.gateio.ws", Path: "/ws/v4/"}
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return c
+	return c, nil
 }
 
 func (r *Gate) priceUpdater(currencyPairs []string) {
@@ -34,31 +35,38 @@ func (r *Gate) priceUpdater(currencyPairs []string) {
 }
 
 func (r *Gate) singlePriceUpdater(currencyPair string) {
-	conn := makeConnection()
+	errPrinter := func(description string, err error) {
+		fmt.Printf("%s, %s pair on exchange %s: %e\n", description, currencyPair, r.Name, err)
+	}
+	conn, err := makeConnection()
+	if err != nil {
+		errPrinter("Error making ws connection", err)
+		return
+	}
 	defer conn.Close()
 
 	// subscribe to prices
 	t := time.Now().Unix()
 	request := subscriptionRequest{t, "spot.book_ticker", "subscribe", []string{currencyPair}}
-	err := request.send(conn)
+	err = request.send(conn)
 	if err != nil {
-		fmt.Println("Error sending ws message:", err)
+		errPrinter("Error subscribing", err)
 	}
 
 	// receive subscription confirmation
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
-		fmt.Println("Error reading ws message:", err)
+		errPrinter("Error reading subscription response", err)
 		return
 	}
 	response := &subscriptionResponse{}
 	err = json.Unmarshal(msg, response)
 	if err != nil {
-		fmt.Println("Error unmarshalling message: ", err)
+		errPrinter("Error unmarshalling subscription response", err)
 		return
 	}
 	if response.Error != nil {
-		fmt.Println("Error subscribing:", response.Error)
+		errPrinter("Error subscribing", errors.New(response.Error.Message))
 		return
 	}
 
@@ -68,22 +76,22 @@ func (r *Gate) singlePriceUpdater(currencyPair string) {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println("Error reading ws message:", err)
+			errPrinter("Error reading update", err)
 			return
 		}
 		// parse json
 		var update tickerUpdate
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			fmt.Println("Error unmarshalling message: ", err)
+			errPrinter("Error unmarshalling update", err)
 			return
 		}
 		// update values
-		market.BestPrice.RWMutex.Lock()
+		market.BestPrice.Lock()
 		market.BestPrice.Bid, _ = decimal.NewFromString(update.Result.BidPrice)
 		market.BestPrice.Ask, _ = decimal.NewFromString(update.Result.AskPrice)
 		market.BestPrice.Timestamp = update.Result.TimeMs
-		market.BestPrice.RWMutex.Unlock()
+		market.BestPrice.Unlock()
 	}
 
 }

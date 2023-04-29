@@ -11,3 +11,7 @@ type Gate struct {
 func (r *Gate) Subscribe(currencyPairs []string) {
 	go r.priceUpdater(currencyPairs)
 }
+
+func New() *Gate {
+	return &Gate{exchanges.BaseExchange{Name: "gate.io"}}
+}
