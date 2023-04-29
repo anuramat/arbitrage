@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
@@ -72,6 +73,18 @@ func (r *Okx) singlePriceUpdater(currencyPair string) {
 		return
 	}
 
+	// start pinging
+	go func() {
+		for {
+			err := conn.WriteMessage(websocket.TextMessage, []byte("ping"))
+			if err != nil {
+				errPrinter("Error sending ping", err)
+				return
+			}
+			time.Sleep(15 * time.Second)
+		}
+	}()
+
 	// receive price updates
 	currencyPair = strings.Replace(currencyPair, "-", "_", 1)
 	market := r.Markets[currencyPair]
@@ -81,6 +94,9 @@ func (r *Okx) singlePriceUpdater(currencyPair string) {
 		if err != nil {
 			errPrinter("Error reading update", err)
 			return
+		}
+		if string(msg) == "pong" {
+			continue
 		}
 		// parse json
 		var update bookSnapshotUpdate
