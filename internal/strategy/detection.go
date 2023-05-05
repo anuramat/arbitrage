@@ -54,9 +54,8 @@ func TableUpdater(allMarkets *models.AllMarkets, exchanges []models.Exchange) {
 					bid := market.BestPrice.Bid
 					market.BestPrice.RUnlock()
 					text := fmt.Sprintf("%v/%v", bid, ask)
-					app.QueueUpdateDraw(func() {
-						table.GetCell(row, column).SetText(text)
-					})
+					table.GetCell(row, column).SetText(text)
+					app.Draw()
 				}
 			}
 			time.Sleep(500 * time.Millisecond)
