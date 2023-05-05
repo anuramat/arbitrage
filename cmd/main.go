@@ -9,6 +9,7 @@ import (
 	"github.com/anuramat/arbitrage/internal/exchanges/whitebit"
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/anuramat/arbitrage/internal/strategy"
+	"github.com/rivo/tview"
 	"github.com/spf13/viper"
 )
 
@@ -40,5 +41,9 @@ func main() {
 	fmt.Println("Exchanges started")
 
 	// arbitrage goes here
+	box := tview.NewBox().SetBorder(true).SetTitle("Hello, world!")
+	if err := tview.NewApplication().SetRoot(box, true).Run(); err != nil {
+		panic(err)
+	}
 	strategy.DetectArbitrage(&allMarkets)
 }

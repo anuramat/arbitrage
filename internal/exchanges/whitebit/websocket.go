@@ -91,9 +91,12 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 			return
 		}
 		// enjoy some hot steamy action with unstructured data
-		orderBook := update.Params[1].(map[string]any)
-		newAsk := extractPrice(orderBook, "asks")
-		newBid := extractPrice(orderBook, "bids")
+		orderBook := depthUpdateData{}
+		json.Unmarshal(update.Params[1], &orderBook)
+
+		// orderBook := update.Params[1].(map[string]any)
+		newAsk := extractPrice(orderBook.Asks)
+		newBid := extractPrice(orderBook.Bids)
 
 		// update values
 		market.BestPrice.Lock()
@@ -110,18 +113,12 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string) {
 
 }
 
-func extractPrice(orderBook map[string]any, side string) decimal.Decimal {
-	// Does all the necessary type assertions to get the updated price
-	// _a is for any, _sa is for []any
-	if orders_a, ok := orderBook[side]; ok {
-		orders_sa := orders_a.([]any)
-		for _, order_a := range orders_sa {
-			order_sa := order_a.([]any)
-			price, _ := decimal.NewFromString(order_sa[0].(string))
-			amount, _ := decimal.NewFromString(order_sa[1].(string))
-			if !amount.IsZero() {
-				return price
-			}
+func extractPrice(prices [][]string) decimal.Decimal {
+	for _, pair := range prices {
+		price, _ := decimal.NewFromString(pair[0])
+		amount, _ := decimal.NewFromString(pair[1])
+		if !amount.IsZero() {
+			return price
 		}
 	}
 	return decimal.Zero
