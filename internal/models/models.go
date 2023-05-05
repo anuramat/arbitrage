@@ -53,4 +53,5 @@ type Exchange interface {
 	Subscribe([]string)
 	MakeMarkets([]string, *AllMarkets)
 	GetName() string
+	GetMarkets() *ExchangeMarkets
 }

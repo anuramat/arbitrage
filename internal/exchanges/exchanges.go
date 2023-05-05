@@ -17,6 +17,10 @@ func (r *BaseExchange) GetName() string {
 	return r.Name
 }
 
+func (r *BaseExchange) GetMarkets() *models.ExchangeMarkets {
+	return &r.Markets
+}
+
 func (r *BaseExchange) MakeMarkets(currencyPairs []string, allMarkets *models.AllMarkets) {
 	r.Markets = make(models.ExchangeMarkets)
 	for _, currencyPair := range currencyPairs {
