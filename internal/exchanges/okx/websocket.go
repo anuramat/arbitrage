@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
 )
@@ -29,13 +30,13 @@ func (msg *subscribeRequest) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
-func (r *Okx) priceUpdater(currencyPairs []string, logger *log.Logger) {
+func (r *Okx) priceUpdater(currencyPairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	for _, currencyPair := range currencyPairs {
-		go r.singlePriceUpdater(currencyPair, logger)
+		go r.singlePriceUpdater(currencyPair, logger, updateChannel)
 	}
 }
 
-func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger) {
+func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
 		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
 	}
@@ -111,5 +112,6 @@ func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 		market.BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
 		market.BestPrice.Timestamp = update.Data[0].Ts
 		market.BestPrice.Unlock()
+		updateChannel <- models.UpdateNotification{CurrencyPair: currencyPair, ExchangeIndex: market.Index}
 	}
 }

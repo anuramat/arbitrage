@@ -11,7 +11,7 @@ type BaseExchange struct {
 	Name    string
 }
 
-func (r *BaseExchange) Subscribe(currencyPairs []string, logger *log.Logger) {
+func (r *BaseExchange) Subscribe(currencyPairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	panic("not implemented")
 }
 
@@ -30,6 +30,7 @@ func (r *BaseExchange) MakeMarkets(currencyPairs []string, allMarkets *models.Al
 			Exchange:  r,
 			OrderBook: models.OrderBook{Bids: []models.OrderBookEntry{}, Asks: []models.OrderBookEntry{}},
 			BestPrice: models.BestPrice{},
+			Index:     len((*allMarkets)[currencyPair]),
 		}
 		r.Markets[currencyPair] = newMarket
 		(*allMarkets)[currencyPair] = append((*allMarkets)[currencyPair], newMarket)

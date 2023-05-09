@@ -40,6 +40,12 @@ type Market struct {
 	Exchange
 	OrderBook
 	BestPrice
+	Index int
+}
+
+type UpdateNotification struct {
+	CurrencyPair  string
+	ExchangeIndex int
 }
 
 // ExchangeMarkets stores market data for a specific exchange.
@@ -51,8 +57,8 @@ type ExchangeMarkets map[string]*Market
 type AllMarkets map[string][]*Market
 
 type Exchange interface {
-	Subscribe([]string, *log.Logger)
-	MakeMarkets([]string, *AllMarkets)
+	Subscribe(currencyPairs []string, logger *log.Logger, updateChannel chan<- UpdateNotification)
+	MakeMarkets(currencyPairs []string, allMarkets *AllMarkets)
 	GetName() string
 	GetMarkets() *ExchangeMarkets
 }

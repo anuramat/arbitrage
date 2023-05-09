@@ -41,6 +41,7 @@ func main() {
 	logger := log.New(info, "", log.LstdFlags)
 
 	// start exchange goroutines, apply configs
+	updateChannel := make(chan models.UpdateNotification)
 	exchanges := []models.Exchange{gate.New(), okx.New(), whitebit.New()}
 	for _, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice("all.currencyPairs")
@@ -51,7 +52,7 @@ func main() {
 			continue
 		}
 		exchange.MakeMarkets(currencyPairs, &allMarkets)
-		go exchange.Subscribe(currencyPairs, logger)
+		go exchange.Subscribe(currencyPairs, logger, updateChannel)
 		fmt.Println("Started " + exchange.GetName() + " exchange for currency pairs: " + strings.Join(currencyPairs, ", "))
 	}
 

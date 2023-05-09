@@ -41,7 +41,6 @@ func TableUpdater(allMarkets *models.AllMarkets, exchanges []models.Exchange, ap
 
 	// update price cells
 	go func() {
-		// make timestamp string
 
 		for {
 			maxProfit := decimal.Zero
