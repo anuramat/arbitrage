@@ -110,8 +110,6 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 		// enjoy some hot steamy action with unstructured data
 		orderBook := depthUpdateData{}
 		json.Unmarshal(update.Params[1], &orderBook)
-
-		// orderBook := update.Params[1].(map[string]any)
 		newAsk := extractPrice(orderBook.Asks)
 		newBid := extractPrice(orderBook.Bids)
 
