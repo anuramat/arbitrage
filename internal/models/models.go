@@ -2,6 +2,7 @@
 package models
 
 import (
+	"log"
 	"sync"
 
 	"github.com/shopspring/decimal"
@@ -50,7 +51,7 @@ type ExchangeMarkets map[string]*Market
 type AllMarkets map[string][]*Market
 
 type Exchange interface {
-	Subscribe([]string)
+	Subscribe([]string, *log.Logger)
 	MakeMarkets([]string, *AllMarkets)
 	GetName() string
 	GetMarkets() *ExchangeMarkets

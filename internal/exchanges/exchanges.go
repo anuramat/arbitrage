@@ -1,6 +1,8 @@
 package exchanges
 
 import (
+	"log"
+
 	"github.com/anuramat/arbitrage/internal/models"
 )
 
@@ -9,7 +11,7 @@ type BaseExchange struct {
 	Name    string
 }
 
-func (r *BaseExchange) Subscribe(currencyPairs []string) {
+func (r *BaseExchange) Subscribe(currencyPairs []string, logger *log.Logger) {
 	panic("not implemented")
 }
 

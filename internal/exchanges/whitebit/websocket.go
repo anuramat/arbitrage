@@ -3,7 +3,7 @@ package whitebit
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"net/url"
 	"time"
 
@@ -28,15 +28,15 @@ func (msg *subscriptionRequest) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
-func (r *Whitebit) priceUpdater(currencyPairs []string) {
+func (r *Whitebit) priceUpdater(currencyPairs []string, logger *log.Logger) {
 	for _, currencyPair := range currencyPairs {
-		go r.singlePriceUpdater(currencyPair)
+		go r.singlePriceUpdater(currencyPair, logger)
 	}
 }
 
-func (r *Whitebit) singlePriceUpdater(currencyPair string) {
+func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
-		fmt.Printf("%s, %s pair on exchange %s: %e\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s pair on exchange %s: %e\n", description, currencyPair, r.Name, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {

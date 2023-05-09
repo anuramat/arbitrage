@@ -1,6 +1,7 @@
 package whitebit
 
 import (
+	"log"
 	"sync/atomic"
 
 	"github.com/anuramat/arbitrage/internal/exchanges"
@@ -11,8 +12,8 @@ type Whitebit struct {
 	requestId atomic.Int64
 }
 
-func (r *Whitebit) Subscribe(currencyPairs []string) {
-	go r.priceUpdater(currencyPairs)
+func (r *Whitebit) Subscribe(currencyPairs []string, logger *log.Logger) {
+	go r.priceUpdater(currencyPairs, logger)
 }
 
 func New() *Whitebit {

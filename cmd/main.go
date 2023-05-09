@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
@@ -9,23 +10,29 @@ import (
 	"github.com/anuramat/arbitrage/internal/exchanges/whitebit"
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/anuramat/arbitrage/internal/strategy"
+	"github.com/rivo/tview"
 	"github.com/spf13/viper"
 )
 
 func main() {
-	fmt.Println("Starting application, loading config...")
-
+	// load configs
 	allMarkets := make(models.AllMarkets)
-
 	viper.SetConfigFile("config.toml")
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Config loaded, starting exchanges...")
+	// initialize tview
+	app := tview.NewApplication()
+	table := tview.NewTable().
+		SetBorders(true)
+	info := tview.NewTextView()
+	info.SetBorder(true).SetTitle("info").SetTitleAlign(tview.AlignCenter)
+	flex := tview.NewFlex().AddItem(table, 0, 1, true).AddItem(info, 0, 1, false)
+	logger := log.New(info, "", log.LstdFlags)
 
-	// read configs, start exchange goroutines
+	// start exchange goroutines, apply configs
 	exchanges := []models.Exchange{gate.New(), okx.New(), whitebit.New()}
 	for _, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice(exchange.GetName() + ".currencyPairs")
@@ -33,13 +40,15 @@ func main() {
 			continue
 		}
 		exchange.MakeMarkets(currencyPairs, &allMarkets)
-		go exchange.Subscribe(currencyPairs)
+		go exchange.Subscribe(currencyPairs, logger)
 		fmt.Println("Started " + exchange.GetName() + " exchange for currency pairs: " + strings.Join(currencyPairs, ", "))
 	}
 
-	fmt.Println("Exchanges started")
+	// start showing updates
+	go strategy.TableUpdater(&allMarkets, exchanges, app, table, logger)
 
-	// show prices in terminal
-	strategy.TableUpdater(&allMarkets, exchanges)
-	select {}
+	// start tview
+	if err := app.SetRoot(flex, true).Run(); err != nil {
+		panic(err)
+	}
 }
