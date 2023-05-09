@@ -30,16 +30,16 @@ func (msg *subscribeRequest) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
-func (r *Okx) priceUpdater(currencyPairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	for _, currencyPair := range currencyPairs {
-		go r.singlePriceUpdater(currencyPair, logger, updateChannel)
-		go r.singleBookUpdater(currencyPair, logger)
+func (r *Okx) priceUpdater(pairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+	for _, pair := range pairs {
+		go r.singlePriceUpdater(pair, logger, updateChannel)
+		go r.singleBookUpdater(pair, logger)
 	}
 }
 
-func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
 	}
 
 	conn, err := makeConnection()
@@ -50,8 +50,8 @@ func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, update
 	defer conn.Close()
 
 	// subscribe to prices
-	currencyPair = strings.Replace(currencyPair, "_", "-", 1)
-	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "bbo-tbt", InstID: currencyPair}}}
+	pair = strings.Replace(pair, "_", "-", 1)
+	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "bbo-tbt", InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
 		errPrinter("Error subscribing", err)
@@ -67,8 +67,8 @@ func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, update
 	go pinger(conn, errPrinter)
 
 	// receive price updates
-	currencyPair = strings.Replace(currencyPair, "-", "_", 1)
-	market := r.Markets[currencyPair]
+	pair = strings.Replace(pair, "-", "_", 1)
+	market := r.Markets[pair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
@@ -92,13 +92,13 @@ func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, update
 		market.BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
 		market.BestPrice.Timestamp = update.Data[0].Ts
 		market.BestPrice.Unlock()
-		updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
+		updateChannel <- models.UpdateNotification{Pair: pair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 }
 
-func (r *Okx) singleBookUpdater(currencyPair string, logger *log.Logger) {
+func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
 	}
 
 	conn, err := makeConnection()
@@ -109,8 +109,8 @@ func (r *Okx) singleBookUpdater(currencyPair string, logger *log.Logger) {
 	defer conn.Close()
 
 	// subscribe to prices
-	currencyPair = strings.Replace(currencyPair, "_", "-", 1)
-	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "books", InstID: currencyPair}}}
+	pair = strings.Replace(pair, "_", "-", 1)
+	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "books5", InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
 		errPrinter("Error subscribing", err)
@@ -126,8 +126,8 @@ func (r *Okx) singleBookUpdater(currencyPair string, logger *log.Logger) {
 	go pinger(conn, errPrinter)
 
 	// receive price updates
-	currencyPair = strings.Replace(currencyPair, "-", "_", 1)
-	market := r.Markets[currencyPair]
+	pair = strings.Replace(pair, "-", "_", 1)
+	market := r.Markets[pair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
@@ -155,8 +155,8 @@ func (r *Okx) singleBookUpdater(currencyPair string, logger *log.Logger) {
 		market.OrderBook.RUnlock()
 
 		// merge updates into copies
-		mergeBooks(update.Data[0].Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) })    // asks are sorted ascending
-		mergeBooks(update.Data[0].Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		asks = mergeBooks(update.Data[0].Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) })    // asks are sorted ascending
+		bids = mergeBooks(update.Data[0].Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
 
 		// write
 		market.OrderBook.Lock()
@@ -198,7 +198,8 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 }
 
 // XXX this is gonna be a problem, needs testing
-func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) {
+// TODO remove panics after adding checksum and restarting on lost update
+func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) []models.OrderBookEntry {
 	j := 0
 	for _, update := range updates {
 		newPrice, _ := decimal.NewFromString(update[0])
@@ -215,12 +216,20 @@ func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator fun
 			}
 			if comparator(newPrice, book[j].Price) {
 				if newAmount.IsZero() {
-					panic("zero amount in book update")
+					panic("zero amount with a new price, probably lost update")
 				}
 				entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
 				book = append(book[:j], append([]models.OrderBookEntry{entry}, book[j:]...)...)
 				break
 			}
 		}
+		if j == len(book) {
+			if newAmount.IsZero() {
+				panic("zero amount in book update, probably lost update")
+			}
+			entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
+			book = append(book, entry)
+		}
 	}
+	return book
 }
