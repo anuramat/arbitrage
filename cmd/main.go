@@ -35,7 +35,7 @@ func main() {
 	app := tview.NewApplication()
 	table := tview.NewTable().
 		SetBorders(true)
-	info := tview.NewTextView()
+	info := tview.NewTextView().SetChangedFunc(func() { app.Draw() })
 	info.SetBorder(true).SetTitle("info").SetTitleAlign(tview.AlignCenter)
 	flex := tview.NewFlex().AddItem(table, 92, 3, true).AddItem(info, 0, 2, false) // XXX table fixed width, flexible info
 	logger := log.New(info, "", log.LstdFlags)

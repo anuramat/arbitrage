@@ -43,3 +43,14 @@ type tickerUpdate struct {
 		AskAmount    string `json:"A"`
 	} `json:"result"`
 }
+
+type bookUpdate struct {
+	genericResponse
+	Result struct {
+		TimeMs       int64       `json:"t"`
+		LastUpdateID int64       `json:"lastUpdateId"`
+		CurrencyPair string      `json:"s"`
+		Bids         [][2]string `json:"bids"`
+		Asks         [][2]string `json:"asks"`
+	}
+}
