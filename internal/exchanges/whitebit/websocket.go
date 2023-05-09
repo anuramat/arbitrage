@@ -20,7 +20,7 @@ func makeConnection() (*websocket.Conn, error) {
 	return c, nil
 }
 
-func (msg *subscriptionRequest) send(c *websocket.Conn) error {
+func (msg *request) send(c *websocket.Conn) error {
 	msgByte, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -36,8 +36,7 @@ func (r *Whitebit) priceUpdater(currencyPairs []string, logger *log.Logger) {
 
 func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %e\n", description, currencyPair, r.Name, err)
-		r.singlePriceUpdater(currencyPair, logger)
+		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -48,12 +47,12 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 
 	// subscribe to prices
 	requestID := r.requestId.Add(1)
-	request := subscriptionRequest{
+	req := request{
 		ID:     requestID,
 		Method: "depth_subscribe",
 		Params: []any{currencyPair, 1, "0", true},
 	}
-	err = request.send(conn)
+	err = req.send(conn)
 	if err != nil {
 		errPrinter("Error subscribing", err)
 	}
@@ -75,6 +74,19 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 		return
 	}
 
+	// start pinging
+	go func() {
+		for {
+			req := request{r.requestId.Add(1), "ping", []any{}}
+			err := req.send(conn)
+			if err != nil {
+				errPrinter("Error sending ping", err)
+				return
+			}
+			time.Sleep(15 * time.Second)
+		}
+	}()
+
 	// receive price updates
 	market := r.Markets[currencyPair]
 	for {
@@ -90,6 +102,10 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 		if err != nil {
 			errPrinter("Error unmarshalling update", err)
 			return
+		}
+		// check for ping
+		if update.Result == "pong" {
+			continue
 		}
 		// enjoy some hot steamy action with unstructured data
 		orderBook := depthUpdateData{}
