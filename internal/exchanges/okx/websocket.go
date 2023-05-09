@@ -112,6 +112,6 @@ func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger, update
 		market.BestPrice.Ask, _ = decimal.NewFromString(update.Data[0].Asks[0][0])
 		market.BestPrice.Timestamp = update.Data[0].Ts
 		market.BestPrice.Unlock()
-		updateChannel <- models.UpdateNotification{CurrencyPair: currencyPair, ExchangeIndex: market.Index}
+		updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 }

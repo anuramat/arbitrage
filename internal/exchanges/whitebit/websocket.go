@@ -125,7 +125,7 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, u
 		// TODO this is a pessimistic approximation of the timestamp
 		market.BestPrice.Timestamp = time.Now().UnixMilli() - 1500
 		market.BestPrice.Unlock()
-		updateChannel <- models.UpdateNotification{CurrencyPair: currencyPair, ExchangeIndex: market.Index}
+		updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 
 }

@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/anuramat/arbitrage/internal/analysis"
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
 	"github.com/anuramat/arbitrage/internal/exchanges/okx"
 	"github.com/anuramat/arbitrage/internal/exchanges/whitebit"
 	"github.com/anuramat/arbitrage/internal/models"
-	"github.com/anuramat/arbitrage/internal/strategy"
 	"github.com/rivo/tview"
 	"github.com/spf13/viper"
 )
@@ -37,11 +37,11 @@ func main() {
 		SetBorders(true)
 	info := tview.NewTextView()
 	info.SetBorder(true).SetTitle("info").SetTitleAlign(tview.AlignCenter)
-	flex := tview.NewFlex().AddItem(table, 0, 1, true).AddItem(info, 0, 1, false)
+	flex := tview.NewFlex().AddItem(table, 92, 3, true).AddItem(info, 0, 2, false) // XXX table fixed width, flexible info
 	logger := log.New(info, "", log.LstdFlags)
 
 	// start exchange goroutines, apply configs
-	updateChannel := make(chan models.UpdateNotification)
+	updateChannel := make(chan models.UpdateNotification, 100)
 	exchanges := []models.Exchange{gate.New(), okx.New(), whitebit.New()}
 	for _, exchange := range exchanges {
 		currencyPairs := viper.GetStringSlice("all.currencyPairs")
@@ -57,7 +57,7 @@ func main() {
 	}
 
 	// start showing updates
-	go strategy.TableUpdater(&allMarkets, exchanges, app, table, logger)
+	go analysis.TableUpdater(&allMarkets, exchanges, app, table, logger, updateChannel)
 
 	// start tview
 	if err := app.SetRoot(flex, true).Run(); err != nil {

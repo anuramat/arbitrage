@@ -44,8 +44,9 @@ type Market struct {
 }
 
 type UpdateNotification struct {
-	CurrencyPair  string
-	ExchangeIndex int
+	Pair          string
+	ExchangeIndex int // index of the market in the allMarkets array for given currency pair
+	ExchangeName  string
 }
 
 // ExchangeMarkets stores market data for a specific exchange.
