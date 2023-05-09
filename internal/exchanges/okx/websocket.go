@@ -38,6 +38,7 @@ func (r *Okx) priceUpdater(currencyPairs []string, logger *log.Logger) {
 func (r *Okx) singlePriceUpdater(currencyPair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
 		logger.Printf("%s, %s pair on exchange %s: %e\n", description, currencyPair, r.Name, err)
+		r.singlePriceUpdater(currencyPair, logger)
 	}
 
 	conn, err := makeConnection()
