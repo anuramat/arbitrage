@@ -79,3 +79,4 @@ Temporary Items
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode,macos
 
 bin/*
+config.toml

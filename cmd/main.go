@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/anuramat/arbitrage/internal/exchanges/gate"
@@ -15,9 +16,16 @@ import (
 )
 
 func main() {
+	// read config name from args
+	args := os.Args
+	if len(args) != 2 {
+		fmt.Println("Usage: arbitrage <config>.toml")
+		return
+	}
+
 	// load configs
 	allMarkets := make(models.AllMarkets)
-	viper.SetConfigFile("config.toml")
+	viper.SetConfigFile(args[1])
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(err)
@@ -35,7 +43,10 @@ func main() {
 	// start exchange goroutines, apply configs
 	exchanges := []models.Exchange{gate.New(), okx.New(), whitebit.New()}
 	for _, exchange := range exchanges {
-		currencyPairs := viper.GetStringSlice(exchange.GetName() + ".currencyPairs")
+		currencyPairs := viper.GetStringSlice("all.currencyPairs")
+		if len(currencyPairs) == 0 {
+			currencyPairs = viper.GetStringSlice(exchange.GetName() + ".currencyPairs")
+		}
 		if len(currencyPairs) == 0 {
 			continue
 		}
