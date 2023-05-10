@@ -3,6 +3,7 @@ package okx
 import (
 	"encoding/json"
 	"errors"
+	"hash/crc32"
 	"log"
 	"net/url"
 	"strings"
@@ -146,7 +147,8 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 			errPrinter("Error unmarshalling update", err)
 			return
 		}
-		// copy asks/bids
+
+		// copy book
 		asks := []models.OrderBookEntry{}
 		bids := []models.OrderBookEntry{}
 		market.OrderBook.RLock()
@@ -154,9 +156,44 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		copy(market.OrderBook.Bids, bids)
 		market.OrderBook.RUnlock()
 
+		// // debug check sort
+		// asks_string := update.Data[0].Asks
+		// for i := 0; i < len(asks_string)-1; i++ {
+		// 	cur, _ := strconv.ParseFloat(asks_string[i][0], 64)
+		// 	next, _ := strconv.ParseFloat(asks_string[i+1][0], 64)
+		// 	if cur > next {
+		// 		logger.Println("asks not sorted")
+		// 	}
+		// }
+
+		// bids_string := update.Data[0].Bids
+		// for i := 0; i < len(bids_string)-1; i++ {
+		// 	cur, _ := strconv.ParseFloat(bids_string[i][0], 64)
+		// 	next, _ := strconv.ParseFloat(bids_string[i+1][0], 64)
+		// 	if cur < next {
+		// 		logger.Println("bids not sorted")
+		// 	}
+		// }
+
 		// merge updates into copies
-		asks = mergeBooks(update.Data[0].Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) })    // asks are sorted ascending
-		bids = mergeBooks(update.Data[0].Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		asks, err = mergeBooks(update.Data[0].Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
+		if err != nil {
+			errPrinter("Error merging asks", err)
+			return
+		}
+		bids, err = mergeBooks(update.Data[0].Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		if err != nil {
+			errPrinter("Error merging bids", err)
+			return
+		}
+
+		err = checksum(asks, bids, uint32(update.Data[0].Checksum))
+		if err != nil {
+			errPrinter("Checksum error", err)
+			return
+		}
+
+		// logger.Println(len(asks), len(bids)) // XXX good check, should be equal to max depth on low depths
 
 		// write
 		market.OrderBook.Lock()
@@ -197,9 +234,7 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 	return true
 }
 
-// XXX this is gonna be a problem, needs testing
-// TODO remove panics after adding checksum and restarting on lost update
-func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) []models.OrderBookEntry {
+func mergeBooks(updates [][4]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) ([]models.OrderBookEntry, error) {
 	j := 0
 	for _, update := range updates {
 		newPrice, _ := decimal.NewFromString(update[0])
@@ -216,7 +251,7 @@ func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator fun
 			}
 			if comparator(newPrice, book[j].Price) {
 				if newAmount.IsZero() {
-					panic("zero amount with a new price, probably lost update")
+					return nil, ErrOrderbookDesync
 				}
 				entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
 				book = append(book[:j], append([]models.OrderBookEntry{entry}, book[j:]...)...)
@@ -225,11 +260,40 @@ func mergeBooks(updates [][]string, book []models.OrderBookEntry, comparator fun
 		}
 		if j == len(book) {
 			if newAmount.IsZero() {
-				panic("zero amount in book update, probably lost update")
+				return nil, ErrOrderbookDesync
 			}
 			entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
 			book = append(book, entry)
 		}
 	}
-	return book
+	return book, nil
+}
+
+func checksum(asks, bids []models.OrderBookEntry, serverChecksum uint32) error {
+	pieces := []string{}
+	smallerLen := min(min(len(asks), len(bids)), 25)
+	for i := 0; i < smallerLen; i++ {
+		pieces = append(pieces, bids[i].Price.String(), bids[i].Amount.String(), asks[i].Price.String(), asks[i].Amount.String())
+	}
+	if len(asks) > len(bids) {
+		for i := smallerLen; i < min(25, len(asks)); i++ {
+			pieces = append(pieces, asks[i].Price.String(), asks[i].Amount.String())
+		}
+	} else {
+		for i := smallerLen; i < min(25, len(bids)); i++ {
+			pieces = append(pieces, bids[i].Price.String(), bids[i].Amount.String())
+		}
+	}
+	clientChecksum := crc32.ChecksumIEEE([]byte(strings.Join(pieces, ":")))
+	if clientChecksum != serverChecksum {
+		return ErrOrderbookDesync
+	}
+	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

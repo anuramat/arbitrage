@@ -1,5 +1,9 @@
 package okx
 
+import "errors"
+
+var ErrOrderbookDesync = errors.New("orderbook desync detected")
+
 type subscribeRequest struct {
 	Op   string            `json:"op"`
 	Args []subscriptionArg `json:"args"`
@@ -25,8 +29,8 @@ type bookSnapshotUpdate struct {
 }
 
 type bookSnapshotData struct {
-	Asks     [][]string `json:"asks"`
-	Bids     [][]string `json:"bids"`
-	Ts       int64      `json:"ts,string"`
-	Checksum int        `json:"checksum"`
+	Asks     [][4]string `json:"asks"`
+	Bids     [][4]string `json:"bids"`
+	Ts       int64       `json:"ts,string"`
+	Checksum int32       `json:"checksum"`
 }

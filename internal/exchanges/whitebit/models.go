@@ -1,6 +1,11 @@
 package whitebit
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
+
+var ErrOrderbookDesync = errors.New("orderbook desync detected")
 
 type request struct {
 	ID     int64  `json:"id"`
@@ -32,6 +37,6 @@ type depthUpdate struct {
 }
 
 type depthUpdateData struct {
-	Asks [][]string `json:"asks"`
-	Bids [][]string `json:"bids"`
+	Asks [][2]string `json:"asks"`
+	Bids [][2]string `json:"bids"`
 }
