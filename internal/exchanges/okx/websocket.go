@@ -3,7 +3,6 @@ package okx
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"hash/crc32"
 	"log"
 	"net/url"
@@ -13,10 +12,6 @@ import (
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
-)
-
-const (
-	orderbookChannel = "books"
 )
 
 func makeConnection() (*websocket.Conn, error) {
@@ -103,9 +98,9 @@ func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel 
 }
 
 func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
+
 	errHandler := func(description string, err error) {
 		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
-		go r.singleBookUpdater(pair, logger)
 	}
 
 	conn, err := makeConnection()
@@ -117,7 +112,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 
 	// subscribe to orderbook
 	pair = strings.Replace(pair, "_", "-", 1)
-	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: orderbookChannel, InstID: pair}}}
+	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "books", InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
 		errHandler("Error subscribing", err)
@@ -136,6 +131,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 	pair = strings.Replace(pair, "-", "_", 1)
 	market := r.Markets[pair]
 	for {
+
 		// read ws message
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -155,34 +151,33 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		}
 
 		// copy book
-		asks := []models.OrderBookEntry{}
-		bids := []models.OrderBookEntry{}
 		market.OrderBook.RLock()
-		copy(market.OrderBook.Asks, asks)
-		copy(market.OrderBook.Bids, bids)
+		asks := make([]models.OrderBookEntry, len(market.OrderBook.Asks))
+		copy(asks, market.OrderBook.Asks)
+		bids := make([]models.OrderBookEntry, len(market.OrderBook.Bids))
+		copy(bids, market.OrderBook.Bids)
 		market.OrderBook.RUnlock()
 
 		// merge updates into copies
 		asks_update := parseOrderStrings(update.Data[0].Asks)
-		asks, err = mergeBooks(asks_update, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
+		asks = mergeBooks(asks_update, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
 		if err != nil {
 			errHandler("Error merging asks", err)
 			return
 		}
 		bids_update := parseOrderStrings(update.Data[0].Bids)
-		bids, err = mergeBooks(bids_update, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		bids = mergeBooks(bids_update, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
 		if err != nil {
 			errHandler("Error merging bids", err)
 			return
 		}
 
-		// TODO this doesn't fucking work
-		if orderbookChannel != "books5" && orderbookChannel != "bbo-tbt" {
-			err = checksum(asks, bids, uint32(update.Data[0].Checksum))
-			if err != nil {
-				errHandler("Checksum error", err)
-				return
-			}
+		clientChecksum := checksum(asks, bids)
+		serverChecksum := uint32(update.Data[0].Checksum)
+		if clientChecksum != serverChecksum {
+			errHandler("Checksum error", ErrOrderbookDesync)
+			// TODO restart
+			return
 		}
 
 		// write
@@ -191,7 +186,9 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		market.OrderBook.Bids = bids
 		market.OrderBook.Timestamp = update.Data[0].Ts
 		market.OrderBook.Unlock()
+
 	}
+
 }
 
 func pinger(conn *websocket.Conn, errPrinter func(string, error)) {
@@ -234,7 +231,7 @@ func parseOrderStrings(orders [][4]string) []models.OrderBookEntry {
 	return entries
 }
 
-func mergeBooks(updates, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) ([]models.OrderBookEntry, error) {
+func mergeBooks(updates, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) []models.OrderBookEntry {
 	j := 0
 	for _, update := range updates {
 		for ; j < len(book); j++ {
@@ -264,10 +261,10 @@ func mergeBooks(updates, book []models.OrderBookEntry, comparator func(a, b deci
 			book = append(book, entry)
 		}
 	}
-	return book, nil
+	return book
 }
 
-func checksum(asks, bids []models.OrderBookEntry, serverChecksum uint32) error {
+func checksum(asks, bids []models.OrderBookEntry) uint32 {
 	pieces := []string{}
 	smallerLen := min(min(len(asks), len(bids)), 25)
 	for i := 0; i < smallerLen; i++ {
@@ -283,10 +280,7 @@ func checksum(asks, bids []models.OrderBookEntry, serverChecksum uint32) error {
 		}
 	}
 	clientChecksum := crc32.ChecksumIEEE([]byte(strings.Join(pieces, ":")))
-	if clientChecksum != serverChecksum {
-		return fmt.Errorf("%w: client=%v != server=%v", ErrOrderbookDesync, clientChecksum, serverChecksum)
-	}
-	return nil
+	return clientChecksum
 }
 
 func min(a, b int) int {
