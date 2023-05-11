@@ -103,42 +103,43 @@ func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel 
 }
 
 func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
-	errPrinter := func(description string, err error) {
+	errHandler := func(description string, err error) {
 		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
+		go r.singleBookUpdater(pair, logger)
 	}
 
 	conn, err := makeConnection()
 	if err != nil {
-		errPrinter("Error making ws connection", err)
+		errHandler("Error making ws connection", err)
 		return
 	}
 	defer conn.Close()
 
-	// subscribe to prices
+	// subscribe to orderbook
 	pair = strings.Replace(pair, "_", "-", 1)
 	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: orderbookChannel, InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
-		errPrinter("Error subscribing", err)
+		errHandler("Error subscribing", err)
 		return
 	}
 
 	// receive subscription confirmation
-	if !subscriptionCheck(conn, errPrinter) {
+	if !subscriptionCheck(conn, errHandler) {
 		return
 	}
 
 	// start pinging
-	go pinger(conn, errPrinter)
+	go pinger(conn, errHandler)
 
-	// receive price updates
+	// receive orderbook updates
 	pair = strings.Replace(pair, "-", "_", 1)
 	market := r.Markets[pair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			errPrinter("Error reading update", err)
+			errHandler("Error reading update", err)
 			return
 		}
 		if string(msg) == "pong" {
@@ -149,7 +150,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			errPrinter("Error unmarshalling update", err)
+			errHandler("Error unmarshalling update", err)
 			return
 		}
 
@@ -161,45 +162,28 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		copy(market.OrderBook.Bids, bids)
 		market.OrderBook.RUnlock()
 
-		// // debug check sort
-		// asks_string := update.Data[0].Asks
-		// for i := 0; i < len(asks_string)-1; i++ {
-		// 	cur, _ := strconv.ParseFloat(asks_string[i][0], 64)
-		// 	next, _ := strconv.ParseFloat(asks_string[i+1][0], 64)
-		// 	if cur > next {
-		// 		logger.Println("asks not sorted")
-		// 	}
-		// }
-
-		// bids_string := update.Data[0].Bids
-		// for i := 0; i < len(bids_string)-1; i++ {
-		// 	cur, _ := strconv.ParseFloat(bids_string[i][0], 64)
-		// 	next, _ := strconv.ParseFloat(bids_string[i+1][0], 64)
-		// 	if cur < next {
-		// 		logger.Println("bids not sorted")
-		// 	}
-		// }
-
 		// merge updates into copies
-		asks, err = mergeBooks(update.Data[0].Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
+		asks_update := parseOrderStrings(update.Data[0].Asks)
+		asks, err = mergeBooks(asks_update, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
 		if err != nil {
-			errPrinter("Error merging asks", err)
+			errHandler("Error merging asks", err)
 			return
 		}
-		bids, err = mergeBooks(update.Data[0].Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		bids_update := parseOrderStrings(update.Data[0].Bids)
+		bids, err = mergeBooks(bids_update, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
 		if err != nil {
-			errPrinter("Error merging bids", err)
+			errHandler("Error merging bids", err)
 			return
 		}
 
 		// TODO this doesn't fucking work
-		err = checksum(asks, bids, uint32(update.Data[0].Checksum))
-		if err != nil {
-			errPrinter("Checksum error", err)
-			return
+		if orderbookChannel != "books5" && orderbookChannel != "bbo-tbt" {
+			err = checksum(asks, bids, uint32(update.Data[0].Checksum))
+			if err != nil {
+				errHandler("Checksum error", err)
+				return
+			}
 		}
-
-		// logger.Println(len(asks), len(bids)) // XXX good check, should be equal to max depth on low depths
 
 		// write
 		market.OrderBook.Lock()
@@ -240,35 +224,43 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 	return true
 }
 
-func mergeBooks(updates [][4]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) ([]models.OrderBookEntry, error) {
+func parseOrderStrings(orders [][4]string) []models.OrderBookEntry {
+	entries := make([]models.OrderBookEntry, len(orders))
+	for i, order := range orders {
+		price, _ := decimal.NewFromString(order[0])
+		amount, _ := decimal.NewFromString(order[1])
+		entries[i] = models.OrderBookEntry{Price: price, Amount: amount}
+	}
+	return entries
+}
+
+func mergeBooks(updates, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) ([]models.OrderBookEntry, error) {
 	j := 0
 	for _, update := range updates {
-		newPrice, _ := decimal.NewFromString(update[0])
-		newAmount, _ := decimal.NewFromString(update[1])
 		for ; j < len(book); j++ {
-			if book[j].Price.Equal(newPrice) {
-				if newAmount.IsZero() {
+			if book[j].Price.Equal(update.Price) {
+				if update.Amount.IsZero() {
 					book = append(book[:j], book[j+1:]...)
 					j--
 				} else {
-					book[j].Amount = newAmount
+					book[j].Amount = update.Amount
 				}
 				break
 			}
-			if comparator(newPrice, book[j].Price) {
-				if newAmount.IsZero() {
-					return nil, ErrOrderbookDesync
+			if comparator(update.Price, book[j].Price) {
+				if update.Amount.IsZero() {
+					break
 				}
-				entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
+				entry := models.OrderBookEntry{Price: update.Price, Amount: update.Amount}
 				book = append(book[:j], append([]models.OrderBookEntry{entry}, book[j:]...)...)
 				break
 			}
 		}
 		if j == len(book) {
-			if newAmount.IsZero() {
-				return nil, ErrOrderbookDesync
+			if update.Amount.IsZero() {
+				break
 			}
-			entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
+			entry := models.OrderBookEntry{Price: update.Price, Amount: update.Amount}
 			book = append(book, entry)
 		}
 	}
