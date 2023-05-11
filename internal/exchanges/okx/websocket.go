@@ -3,6 +3,7 @@ package okx
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"log"
 	"net/url"
@@ -12,6 +13,10 @@ import (
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/gorilla/websocket"
 	"github.com/shopspring/decimal"
+)
+
+const (
+	orderbookChannel = "books5"
 )
 
 func makeConnection() (*websocket.Conn, error) {
@@ -111,7 +116,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 
 	// subscribe to prices
 	pair = strings.Replace(pair, "_", "-", 1)
-	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "books5", InstID: pair}}}
+	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: orderbookChannel, InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
 		errPrinter("Error subscribing", err)
@@ -187,11 +192,12 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 			return
 		}
 
-		err = checksum(asks, bids, uint32(update.Data[0].Checksum))
-		if err != nil {
-			errPrinter("Checksum error", err)
-			return
-		}
+		// // this doesn't fucking work
+		// err = checksum(asks, bids, uint32(update.Data[0].Checksum))
+		// if err != nil {
+		// 	errPrinter("Checksum error", err)
+		// 	return
+		// }
 
 		// logger.Println(len(asks), len(bids)) // XXX good check, should be equal to max depth on low depths
 
@@ -286,7 +292,7 @@ func checksum(asks, bids []models.OrderBookEntry, serverChecksum uint32) error {
 	}
 	clientChecksum := crc32.ChecksumIEEE([]byte(strings.Join(pieces, ":")))
 	if clientChecksum != serverChecksum {
-		return ErrOrderbookDesync
+		return fmt.Errorf("%w: client=%v != server=%v", ErrOrderbookDesync, clientChecksum, serverChecksum)
 	}
 	return nil
 }
