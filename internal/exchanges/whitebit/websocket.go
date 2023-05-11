@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	maxDepth = 100
-	interval = "0"
+	maxDepth         = 100
+	interval         = "0"
+	requestFrequency = 1000 * time.Millisecond
 )
 
 func makeConnection() (*websocket.Conn, error) {
@@ -112,6 +113,74 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, u
 		updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 
+}
+
+func (r *Whitebit) singleBookUpdaterRequest(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+	errPrinter := func(description string, err error) {
+		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+	}
+	conn, err := makeConnection()
+	if err != nil {
+		errPrinter("Error making ws connection", err)
+		return
+	}
+	defer conn.Close()
+
+	market := r.Markets[currencyPair]
+	for {
+		requestID := r.requestId.Add(1)
+		req := request{
+			ID:     requestID,
+			Method: "depth_request",
+			Params: []any{currencyPair, maxDepth, interval},
+		}
+		err = req.send(conn)
+		if err != nil {
+			errPrinter("Error requesting orderbook", err)
+		}
+
+		// receive orderbook
+		_, msg, err := conn.ReadMessage()
+		ts := tsApprox()
+		if err != nil {
+			errPrinter("Error reading update", err)
+			return
+		}
+		// parse json
+		update := depthUpdate{}
+		err = json.Unmarshal(msg, &update)
+		if err != nil {
+			errPrinter("Error unmarshalling update", err)
+			return
+		}
+		// check for ping
+		if update.Result == "pong" {
+			continue
+		}
+		// enjoy some hot steamy action with unstructured data
+		bookUpdate := depthUpdateData{}
+		json.Unmarshal(update.Params[1], &bookUpdate)
+		asks := parseOrderStrings(bookUpdate.Asks)
+		bids := parseOrderStrings(bookUpdate.Bids)
+
+		market.OrderBook.Lock()
+		market.OrderBook.Asks = asks
+		market.OrderBook.Bids = bids
+		market.OrderBook.Timestamp = ts
+		market.OrderBook.Unlock()
+
+		time.Sleep(requestFrequency)
+	}
+}
+
+func parseOrderStrings(orders [][2]string) []models.OrderBookEntry {
+	entries := make([]models.OrderBookEntry, len(orders))
+	for i, order := range orders {
+		price, _ := decimal.NewFromString(order[0])
+		amount, _ := decimal.NewFromString(order[1])
+		entries[i] = models.OrderBookEntry{Price: price, Amount: amount}
+	}
+	return entries
 }
 
 func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {

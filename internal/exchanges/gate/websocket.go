@@ -94,7 +94,7 @@ func (r *Gate) singlePriceUpdater(pair string, logger *log.Logger, updateChannel
 
 }
 
-// TODO transition to updates? kinda hard tho
+// TODO transition from snapshots to updates? kinda hard tho
 func (r *Gate) singleBookUpdater(pair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
 		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
