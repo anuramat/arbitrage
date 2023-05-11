@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	orderbookChannel = "books5"
+	orderbookChannel = "books"
 )
 
 func makeConnection() (*websocket.Conn, error) {
@@ -192,12 +192,12 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 			return
 		}
 
-		// // this doesn't fucking work
-		// err = checksum(asks, bids, uint32(update.Data[0].Checksum))
-		// if err != nil {
-		// 	errPrinter("Checksum error", err)
-		// 	return
-		// }
+		// TODO this doesn't fucking work
+		err = checksum(asks, bids, uint32(update.Data[0].Checksum))
+		if err != nil {
+			errPrinter("Checksum error", err)
+			return
+		}
 
 		// logger.Println(len(asks), len(bids)) // XXX good check, should be equal to max depth on low depths
 
