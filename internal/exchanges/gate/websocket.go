@@ -45,7 +45,7 @@ func (r *Gate) updater(pairs []string, logger *log.Logger, updateChannel chan<- 
 
 func (r *Gate) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *Gate) singlePriceUpdater(pair string, logger *log.Logger, updateChannel
 // TODO transition from snapshots to updates? kinda hard tho
 func (r *Gate) singleBookUpdater(pair string, logger *log.Logger) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
+		logger.Printf("%s:singleBookUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {

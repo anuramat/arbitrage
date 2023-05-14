@@ -35,16 +35,16 @@ func (msg *request) send(c *websocket.Conn) error {
 	return c.WriteMessage(websocket.TextMessage, msgByte)
 }
 
-func (r *Whitebit) priceUpdater(currencyPairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	for _, currencyPair := range currencyPairs {
-		go r.singlePriceUpdater(currencyPair, logger, updateChannel)
-		go r.singleBookUpdaterRequest(currencyPair, logger, updateChannel)
+func (r *Whitebit) priceUpdater(pairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+	for _, pair := range pairs {
+		go r.singlePriceUpdater(pair, logger, updateChannel)
+		go r.singleBookUpdaterRequest(pair, logger, updateChannel)
 	}
 }
 
-func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -58,7 +58,7 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, u
 	req := request{
 		ID:     requestID,
 		Method: "depth_subscribe",
-		Params: []any{currencyPair, 1, interval, true},
+		Params: []any{pair, 1, interval, true},
 	}
 	err = req.send(conn)
 	if err != nil {
@@ -74,7 +74,7 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, u
 	go r.pinger(conn, errPrinter)
 
 	// receive price updates
-	market := r.Markets[currencyPair]
+	market := r.Markets[pair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
@@ -111,14 +111,14 @@ func (r *Whitebit) singlePriceUpdater(currencyPair string, logger *log.Logger, u
 		market.BestPrice.Timestamp = ts
 		market.BestPrice.Unlock()
 
-		updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
+		updateChannel <- models.UpdateNotification{Pair: pair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 
 }
 
-func (r *Whitebit) singleBookUpdaterRequest(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -127,13 +127,13 @@ func (r *Whitebit) singleBookUpdaterRequest(currencyPair string, logger *log.Log
 	}
 	defer conn.Close()
 
-	market := r.Markets[currencyPair]
+	market := r.Markets[pair]
 	for {
 		requestID := r.requestId.Add(1)
 		req := request{
 			ID:     requestID,
 			Method: "depth_request",
-			Params: []any{currencyPair, maxDepth, interval},
+			Params: []any{pair, maxDepth, interval},
 		}
 		err = req.send(conn)
 		if err != nil {
@@ -184,9 +184,9 @@ func parseOrderStrings(orders [][2]string) []models.OrderBookEntry {
 	return entries
 }
 
-func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
+func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, currencyPair, r.Name, err)
+		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -200,7 +200,7 @@ func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, up
 	req := request{
 		ID:     requestID,
 		Method: "depth_subscribe",
-		Params: []any{currencyPair, maxDepth, interval, true},
+		Params: []any{pair, maxDepth, interval, true},
 	}
 	err = req.send(conn)
 	if err != nil {
@@ -216,7 +216,7 @@ func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, up
 	go r.pinger(conn, errPrinter)
 
 	// receive price updates
-	market := r.Markets[currencyPair]
+	market := r.Markets[pair]
 	for {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
@@ -273,7 +273,7 @@ func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, up
 		// market.BestPrice.Timestamp = ts
 		// market.BestPrice.Unlock()
 
-		// updateChannel <- models.UpdateNotification{Pair: currencyPair, ExchangeIndex: market.Index, ExchangeName: r.Name}
+		// updateChannel <- models.UpdateNotification{Pair: pair, ExchangeIndex: market.Index, ExchangeName: r.Name}
 	}
 
 }

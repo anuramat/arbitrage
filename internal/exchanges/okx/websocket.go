@@ -40,7 +40,7 @@ func (r *Okx) priceUpdater(pairs []string, logger *log.Logger, updateChannel cha
 
 func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 
 	conn, err := makeConnection()
@@ -98,14 +98,13 @@ func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel 
 }
 
 func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
-
-	errHandler := func(description string, err error) {
-		logger.Printf("%s, %s pair on exchange %s: %v\n", description, pair, r.Name, err)
+	errPrinter := func(description string, err error) {
+		logger.Printf("%s:singleBookUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 
 	conn, err := makeConnection()
 	if err != nil {
-		errHandler("Error making ws connection", err)
+		errPrinter("Error making ws connection", err)
 		return
 	}
 	defer conn.Close()
@@ -115,17 +114,17 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 	request := subscribeRequest{Op: "subscribe", Args: []subscriptionArg{{Channel: "books", InstID: pair}}}
 	err = request.send(conn)
 	if err != nil {
-		errHandler("Error subscribing", err)
+		errPrinter("Error subscribing", err)
 		return
 	}
 
 	// receive subscription confirmation
-	if !subscriptionCheck(conn, errHandler) {
+	if !subscriptionCheck(conn, errPrinter) {
 		return
 	}
 
 	// start pinging
-	go pinger(conn, errHandler)
+	go pinger(conn, errPrinter)
 
 	// receive orderbook updates
 	pair = strings.Replace(pair, "-", "_", 1)
@@ -135,7 +134,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		// read ws message
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			errHandler("Error reading update", err)
+			errPrinter("Error reading update", err)
 			return
 		}
 		if string(msg) == "pong" {
@@ -146,7 +145,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			errHandler("Error unmarshalling update", err)
+			errPrinter("Error unmarshalling update", err)
 			return
 		}
 
@@ -162,7 +161,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		clientChecksum := checksum(asks, bids)
 		serverChecksum := uint32(update.Data[0].Checksum)
 		if clientChecksum != serverChecksum {
-			errHandler("Checksum error", ErrOrderbookDesync)
+			errPrinter("Checksum error", ErrOrderbookDesync)
 			// TODO restart
 			return
 		}
