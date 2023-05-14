@@ -1,8 +1,68 @@
 package analysis
 
-// func triggerDetector(allMarkets *models.AllMarkets, updateChannel <-chan models.UpdateNotification, logger *log.Logger) {
-// 	// TODO implement: on each change check the trigger as described in the proposal
-// }
+import (
+	"log"
+
+	"github.com/anuramat/arbitrage/internal/models"
+	"github.com/shopspring/decimal"
+)
+
+func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
+	// TODO set frequency
+	// basic idea: for current exchange, take its lowest ask, and compare it to the highest bid of all other exchanges
+	// if highest bid is higher than lowest ask, then iterate through orderbooks
+	//
+	bestProfit := decimal.Zero
+	bestBidExchange := ""
+	bestAskExchange := ""
+	bestPair := ""
+	for pair, markets := range *allMarkets {
+		for _, market := range markets {
+			market.BestPrice.RLock()
+			ask := market.BestPrice.Ask
+			market.BestPrice.RUnlock()
+
+			if ask.IsZero() {
+				continue
+			}
+
+			for _, market2 := range markets {
+				market2.BestPrice.RLock()
+				bid := market2.BestPrice.Bid
+				market2.BestPrice.RUnlock()
+
+				if bid.IsZero() {
+					continue
+				}
+
+				// check if there is any arbitrage opportunity at all, if not, continue
+				if !bid.Sub(ask).IsPositive() {
+					continue
+				}
+
+				// calculate absolute profit
+				absoluteProfit := bid.Sub(ask).Div(ask).Mul(decimal.NewFromInt(100))
+				if bestProfit.LessThan(absoluteProfit) {
+					bestProfit = absoluteProfit
+					bestBidExchange = market2.Exchange.GetName()
+					bestAskExchange = market.Exchange.GetName()
+					bestPair = pair
+				}
+			}
+		}
+
+	}
+	if !bestProfit.IsZero() {
+		logger.Printf("Biggest opportunity in absolute terms: %v:%v B:%v/A:%v", bestProfit, bestBidExchange, bestAskExchange, bestPair)
+	} else {
+		logger.Printf("No opportunity found")
+	}
+}
+
+func CalculateAbsoluteProfit(bids, asks []models.OrderBookEntry) decimal.Decimal {
+	// TODO
+	return decimal.Zero
+}
 
 // func bestAbsoluteOpportunityDetector(freq time.Duration, allMarkets *models.AllMarkets, logger *log.Logger) {
 // 	for pair, markets := range *allMarkets {
