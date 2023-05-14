@@ -151,26 +151,13 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		}
 
 		// copy book
-		market.OrderBook.RLock()
-		asks := make([]models.OrderBookEntry, len(market.OrderBook.Asks))
-		copy(asks, market.OrderBook.Asks)
-		bids := make([]models.OrderBookEntry, len(market.OrderBook.Bids))
-		copy(bids, market.OrderBook.Bids)
-		market.OrderBook.RUnlock()
+		asks, bids := market.CopyAsksBids()
 
 		// merge updates into copies
 		asks_update := parseOrderStrings(update.Data[0].Asks)
-		asks = mergeBooks(asks_update, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
-		if err != nil {
-			errHandler("Error merging asks", err)
-			return
-		}
+		asks = models.MergeBooks(asks_update, asks, true)
 		bids_update := parseOrderStrings(update.Data[0].Bids)
-		bids = mergeBooks(bids_update, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
-		if err != nil {
-			errHandler("Error merging bids", err)
-			return
-		}
+		bids = models.MergeBooks(bids_update, bids, false)
 
 		clientChecksum := checksum(asks, bids)
 		serverChecksum := uint32(update.Data[0].Checksum)
@@ -180,12 +167,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 			return
 		}
 
-		// write
-		market.OrderBook.Lock()
-		market.OrderBook.Asks = asks
-		market.OrderBook.Bids = bids
-		market.OrderBook.Timestamp = update.Data[0].Ts
-		market.OrderBook.Unlock()
+		market.WriteOrderbook(asks, bids, update.Data[0].Ts)
 
 	}
 
@@ -229,39 +211,6 @@ func parseOrderStrings(orders [][4]string) []models.OrderBookEntry {
 		entries[i] = models.OrderBookEntry{Price: price, Amount: amount}
 	}
 	return entries
-}
-
-func mergeBooks(updates, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) []models.OrderBookEntry {
-	j := 0
-	for _, update := range updates {
-		for ; j < len(book); j++ {
-			if book[j].Price.Equal(update.Price) {
-				if update.Amount.IsZero() {
-					book = append(book[:j], book[j+1:]...)
-					j--
-				} else {
-					book[j].Amount = update.Amount
-				}
-				break
-			}
-			if comparator(update.Price, book[j].Price) {
-				if update.Amount.IsZero() {
-					break
-				}
-				entry := models.OrderBookEntry{Price: update.Price, Amount: update.Amount}
-				book = append(book[:j], append([]models.OrderBookEntry{entry}, book[j:]...)...)
-				break
-			}
-		}
-		if j == len(book) {
-			if update.Amount.IsZero() {
-				break
-			}
-			entry := models.OrderBookEntry{Price: update.Price, Amount: update.Amount}
-			book = append(book, entry)
-		}
-	}
-	return book
 }
 
 func checksum(asks, bids []models.OrderBookEntry) uint32 {

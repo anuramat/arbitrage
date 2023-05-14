@@ -63,3 +63,64 @@ type Exchange interface {
 	GetName() string
 	GetMarkets() *ExchangeMarkets
 }
+
+func (market *Market) CopyAsksBids() (asks []OrderBookEntry, bids []OrderBookEntry) {
+	market.OrderBook.RLock()
+	defer market.OrderBook.RUnlock()
+	asks = make([]OrderBookEntry, len(market.OrderBook.Asks))
+	copy(market.OrderBook.Asks, asks)
+	bids = make([]OrderBookEntry, len(market.OrderBook.Bids))
+	copy(market.OrderBook.Bids, bids)
+	return asks, bids
+}
+
+func (market *Market) WriteOrderbook(asks []OrderBookEntry, bids []OrderBookEntry, ts int64) {
+	market.OrderBook.Lock()
+	defer market.OrderBook.Unlock()
+	market.OrderBook.Asks = asks
+	market.OrderBook.Bids = bids
+	market.OrderBook.Timestamp = ts
+}
+
+func MergeBooks(updates, book []OrderBookEntry, isAsks bool) []OrderBookEntry {
+	var comparator func(a, b decimal.Decimal) bool
+	if isAsks {
+		comparator = func(a, b decimal.Decimal) bool {
+			return a.LessThan(b)
+		}
+	} else {
+		comparator = func(a, b decimal.Decimal) bool {
+			return a.GreaterThan(b)
+		}
+	}
+	j := 0
+	for _, update := range updates {
+		for ; j < len(book); j++ {
+			if book[j].Price.Equal(update.Price) {
+				if update.Amount.IsZero() {
+					book = append(book[:j], book[j+1:]...)
+					j--
+				} else {
+					book[j].Amount = update.Amount
+				}
+				break
+			}
+			if comparator(update.Price, book[j].Price) {
+				if update.Amount.IsZero() {
+					break
+				}
+				entry := OrderBookEntry{Price: update.Price, Amount: update.Amount}
+				book = append(book[:j], append([]OrderBookEntry{entry}, book[j:]...)...)
+				break
+			}
+		}
+		if j == len(book) {
+			if update.Amount.IsZero() {
+				break
+			}
+			entry := OrderBookEntry{Price: update.Price, Amount: update.Amount}
+			book = append(book, entry)
+		}
+	}
+	return book
+}

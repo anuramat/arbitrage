@@ -38,6 +38,7 @@ func (msg *request) send(c *websocket.Conn) error {
 func (r *Whitebit) priceUpdater(currencyPairs []string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	for _, currencyPair := range currencyPairs {
 		go r.singlePriceUpdater(currencyPair, logger, updateChannel)
+		go r.singleBookUpdaterRequest(currencyPair, logger, updateChannel)
 	}
 }
 
@@ -239,21 +240,12 @@ func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, up
 		bookUpdate := depthUpdateData{}
 		json.Unmarshal(update.Params[1], &bookUpdate)
 
-		// copy book
-		asks := []models.OrderBookEntry{}
-		bids := []models.OrderBookEntry{}
-		market.OrderBook.RLock()
-		copy(market.OrderBook.Asks, asks)
-		copy(market.OrderBook.Bids, bids)
-		market.OrderBook.RUnlock()
+		// copy books
+		asks, bids := market.CopyAsksBids()
 
 		// merge updates into copies
-		asks, err = mergeBooks(bookUpdate.Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) }) // asks are sorted ascending
-		if err != nil {
-			errPrinter("Error merging asks", err)
-			return
-		}
-		bids, err = mergeBooks(bookUpdate.Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
+		asks = mergeBooks(bookUpdate.Asks, asks, func(a, b decimal.Decimal) bool { return a.LessThan(b) })    // asks are sorted ascending
+		bids = mergeBooks(bookUpdate.Bids, bids, func(a, b decimal.Decimal) bool { return a.GreaterThan(b) }) // bids are sorted descending
 		if err != nil {
 			errPrinter("Error merging bids", err)
 			return
@@ -268,12 +260,7 @@ func (r *Whitebit) singleBookUpdater(currencyPair string, logger *log.Logger, up
 		// 	highestBid = bids[0].Price
 		// }
 
-		// write
-		market.OrderBook.Lock()
-		market.OrderBook.Asks = asks
-		market.OrderBook.Bids = bids
-		market.OrderBook.Timestamp = ts
-		market.OrderBook.Unlock()
+		market.WriteOrderbook(asks, bids, ts)
 
 		// // update best price
 		// market.BestPrice.Lock()
@@ -338,7 +325,7 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 	return true
 }
 
-func mergeBooks(updates [][2]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) ([]models.OrderBookEntry, error) {
+func mergeBooks(updates [][2]string, book []models.OrderBookEntry, comparator func(a, b decimal.Decimal) bool) []models.OrderBookEntry {
 	j := 0
 	for _, update := range updates {
 		newPrice, _ := decimal.NewFromString(update[0])
@@ -355,7 +342,7 @@ func mergeBooks(updates [][2]string, book []models.OrderBookEntry, comparator fu
 			}
 			if comparator(newPrice, book[j].Price) {
 				if newAmount.IsZero() {
-					return nil, ErrOrderbookDesync
+					break
 				}
 				entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
 				book = append(book[:j], append([]models.OrderBookEntry{entry}, book[j:]...)...)
@@ -364,11 +351,11 @@ func mergeBooks(updates [][2]string, book []models.OrderBookEntry, comparator fu
 		}
 		if j == len(book) {
 			if newAmount.IsZero() {
-				return nil, ErrOrderbookDesync
+				break
 			}
 			entry := models.OrderBookEntry{Price: newPrice, Amount: newAmount}
 			book = append(book, entry)
 		}
 	}
-	return book, nil
+	return book
 }
