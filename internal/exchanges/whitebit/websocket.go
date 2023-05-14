@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	maxDepth         = 100
-	interval         = "0"
-	requestFrequency = 1000 * time.Millisecond
+	maxDepth                  = 100
+	interval                  = "0"
+	orderbookRequestFrequency = 1000 * time.Millisecond
 )
 
 func makeConnection() (*websocket.Conn, error) {
@@ -44,7 +44,7 @@ func (r *Whitebit) priceUpdater(pairs []string, logger *log.Logger, updateChanne
 
 func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -118,7 +118,7 @@ func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateCha
 
 func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
+		logger.Printf("%s:singleBookUpdaterRequest, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -170,7 +170,7 @@ func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, upd
 		market.OrderBook.Timestamp = ts
 		market.OrderBook.Unlock()
 
-		time.Sleep(requestFrequency)
+		time.Sleep(orderbookRequestFrequency)
 	}
 }
 
@@ -186,7 +186,7 @@ func parseOrderStrings(orders [][2]string) []models.OrderBookEntry {
 
 func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error) {
-		logger.Printf("%s, %s, %s: %v", r.Name, pair, description, err)
+		logger.Printf("%s:singleBookUpdater, %s, %s: %v", r.Name, pair, description, err)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -315,7 +315,7 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 	response := &subscriptionResponse{}
 	err = json.Unmarshal(msg, response)
 	if err != nil {
-		errPrinter("Error unmarshalling subscription response", err)
+		errPrinter("Error unmarshalling subscription response: ", err)
 		return false
 	}
 	if response.Error != nil {
