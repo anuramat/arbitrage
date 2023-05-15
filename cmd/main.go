@@ -33,17 +33,22 @@ func main() {
 
 	// initialize tview
 	app := tview.NewApplication()
+
 	table := tview.NewTable().
 		SetBorders(true)
+
 	debugTextView := tview.NewTextView().SetChangedFunc(func() { app.Draw() })
 	debugTextView.SetBorder(true).SetTitle("debug").SetTitleAlign(tview.AlignCenter)
+	debugLogger := log.New(debugTextView, "", log.LstdFlags)
+
 	infoTextView := tview.NewTextView().SetChangedFunc(func() { app.Draw() })
 	infoTextView.SetBorder(true).SetTitle("info").SetTitleAlign(tview.AlignCenter)
-	textViewFlex := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(infoTextView, 0, 2, false).AddItem(debugTextView, 0, 2, false)
-	flex := tview.NewFlex().AddItem(table, 92, 3, true).AddItem(textViewFlex, 0, 2, false) // XXX table fixed width, flexible info
-
-	debugLogger := log.New(debugTextView, "", log.LstdFlags)
 	// infoLogger := log.New(infoTextView, "", log.LstdFlags)
+
+	textViewFlex := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(infoTextView, 0, 2, false).AddItem(debugTextView, 0, 2, false)
+
+	flex := tview.NewFlex().AddItem(table, 92, 3, true).AddItem(textViewFlex, 0, 2, false) // XXX table fixed width, flexible info/debug
+	// TODO make focus switch on click
 
 	// start exchange goroutines, apply configs
 	updateChannel := make(chan models.UpdateNotification, 100)
@@ -66,7 +71,7 @@ func main() {
 	// TODO add detector here
 
 	// start tview
-	if err := app.SetRoot(flex, true).Run(); err != nil {
+	if err := app.SetRoot(flex, true).SetFocus(debugTextView).Run(); err != nil {
 		panic(err)
 	}
 }

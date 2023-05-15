@@ -43,8 +43,8 @@ func (r *Whitebit) priceUpdater(pairs []string, logger *log.Logger, updateChanne
 }
 
 func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	errPrinter := func(description string, err error) {
-		logger.Printf("%s:singlePriceUpdater, %s, %s: %v", r.Name, pair, description, err)
+	errPrinter := func(description string, err error, other ...any) {
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -87,7 +87,7 @@ func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateCha
 		update := depthUpdate{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			errPrinter("Error unmarshalling update", err)
+			errPrinter("Error unmarshalling update", err, string(msg))
 			return
 		}
 		// check for ping
@@ -117,8 +117,8 @@ func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateCha
 }
 
 func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	errPrinter := func(description string, err error) {
-		logger.Printf("%s:singleBookUpdaterRequest, %s, %s: %v", r.Name, pair, description, err)
+	errPrinter := func(description string, err error, other ...any) {
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -151,7 +151,7 @@ func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, upd
 		update := depthUpdate{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			errPrinter("Error unmarshalling update", err)
+			errPrinter("Error unmarshalling update", err, string(msg))
 			return
 		}
 		// check for ping
@@ -185,8 +185,8 @@ func parseOrderStrings(orders [][2]string) []models.OrderBookEntry {
 }
 
 func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	errPrinter := func(description string, err error) {
-		logger.Printf("%s:singleBookUpdater, %s, %s: %v", r.Name, pair, description, err)
+	errPrinter := func(description string, err error, other ...any) {
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -229,7 +229,7 @@ func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChan
 		update := depthUpdate{}
 		err = json.Unmarshal(msg, &update)
 		if err != nil {
-			errPrinter("Error unmarshalling update", err)
+			errPrinter("Error unmarshalling update", err, string(msg))
 			return
 		}
 		// check for ping
@@ -294,7 +294,7 @@ func tsApprox() int64 {
 	return time.Now().UnixMilli() - 1500
 }
 
-func (r *Whitebit) pinger(conn *websocket.Conn, errPrinter func(string, error)) {
+func (r *Whitebit) pinger(conn *websocket.Conn, errPrinter func(string, error, ...any)) {
 	for {
 		req := request{r.requestId.Add(1), "ping", []any{}}
 		err := req.send(conn)
@@ -306,7 +306,7 @@ func (r *Whitebit) pinger(conn *websocket.Conn, errPrinter func(string, error)) 
 	}
 }
 
-func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok bool) {
+func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error, ...any)) (ok bool) {
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		errPrinter("Error reading subscription response", err)
@@ -315,7 +315,7 @@ func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok
 	response := &subscriptionResponse{}
 	err = json.Unmarshal(msg, response)
 	if err != nil {
-		errPrinter("Error unmarshalling subscription response: ", err)
+		errPrinter("Error unmarshalling subscription response: ", err, string(msg))
 		return false
 	}
 	if response.Error != nil {
