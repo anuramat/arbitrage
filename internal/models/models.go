@@ -93,34 +93,33 @@ func MergeBooks(updates, book []OrderBookEntry, isAsks bool) []OrderBookEntry {
 			return a.GreaterThan(b)
 		}
 	}
-	j := 0
-	for _, update := range updates {
-		for ; j < len(book); j++ {
-			if book[j].Price.Equal(update.Price) {
-				if update.Amount.IsZero() {
-					book = append(book[:j], book[j+1:]...)
-					j--
-				} else {
-					book[j].Amount = update.Amount
-				}
-				break
+
+	newBook := make([]OrderBookEntry, 0, len(book))
+	oldPointer := 0
+	updatePointer := 0
+	for oldPointer < len(book) && updatePointer < len(updates) {
+		if book[oldPointer].Price.Equal(updates[updatePointer].Price) {
+			if updates[updatePointer].Amount.IsZero() {
+				oldPointer++
+				updatePointer++
+			} else {
+				newBook = append(newBook, updates[updatePointer])
+				oldPointer++
+				updatePointer++
 			}
-			if comparator(update.Price, book[j].Price) {
-				if update.Amount.IsZero() {
-					break
-				}
-				entry := OrderBookEntry{Price: update.Price, Amount: update.Amount}
-				book = append(book[:j], append([]OrderBookEntry{entry}, book[j:]...)...)
-				break
-			}
-		}
-		if j == len(book) {
-			if update.Amount.IsZero() {
-				break
-			}
-			entry := OrderBookEntry{Price: update.Price, Amount: update.Amount}
-			book = append(book, entry)
+		} else if comparator(book[oldPointer].Price, updates[updatePointer].Price) {
+			newBook = append(newBook, book[oldPointer])
+			oldPointer++
+		} else {
+			newBook = append(newBook, updates[updatePointer])
+			updatePointer++
 		}
 	}
-	return book
+	if oldPointer < len(book) {
+		newBook = append(newBook, book[oldPointer:]...)
+	}
+	if updatePointer < len(updates) {
+		newBook = append(newBook, updates[updatePointer:]...)
+	}
+	return newBook
 }
