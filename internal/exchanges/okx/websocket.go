@@ -157,7 +157,6 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		asks = models.MergeBooks(asks_update, asks, true)
 		bids_update := parseOrderStrings(update.Data[0].Bids)
 		bids = models.MergeBooks(bids_update, bids, false)
-
 		clientChecksum := checksum(asks, bids)
 		serverChecksum := uint32(update.Data[0].Checksum)
 		if clientChecksum != serverChecksum {

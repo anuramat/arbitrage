@@ -68,9 +68,9 @@ func (market *Market) CopyAsksBids() (asks []OrderBookEntry, bids []OrderBookEnt
 	market.OrderBook.RLock()
 	defer market.OrderBook.RUnlock()
 	asks = make([]OrderBookEntry, len(market.OrderBook.Asks))
-	copy(market.OrderBook.Asks, asks)
+	copy(asks, market.OrderBook.Asks)
 	bids = make([]OrderBookEntry, len(market.OrderBook.Bids))
-	copy(market.OrderBook.Bids, bids)
+	copy(bids, market.OrderBook.Bids)
 	return asks, bids
 }
 
