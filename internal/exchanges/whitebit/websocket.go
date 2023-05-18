@@ -18,6 +18,8 @@ const (
 	orderbookRequestFrequency = 1000 * time.Millisecond
 )
 
+// TODO check err handling
+
 func makeConnection() (*websocket.Conn, error) {
 	u := url.URL{Scheme: "wss", Host: "api.whitebit.com", Path: "/ws"}
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -91,12 +93,23 @@ func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateCha
 			return
 		}
 		// check for ping
-		if update.Result == "pong" {
+		// I don't fucking get it why this doesn't work without explicit unmarshalling
+		// might have something to do with escape characters
+		// (IT SHOULDN'T)
+		resultString := new(string)
+		json.Unmarshal(update.Result, resultString)
+		if *resultString == "pong" {
 			continue
 		}
 		// enjoy some hot steamy action with unstructured data
+		params := []json.RawMessage{}
+		json.Unmarshal(update.Params, &params)
+		if len(params) < 2 {
+			errPrinter("Error parsing update", errors.New("params length not 2"), string(msg))
+			return
+		}
 		orderBook := depthUpdateData{}
-		json.Unmarshal(update.Params[1], &orderBook)
+		json.Unmarshal(params[1], &orderBook)
 		lowestAsk := extractPrice(orderBook.Asks)
 		highestBid := extractPrice(orderBook.Bids)
 
@@ -118,7 +131,7 @@ func (r *Whitebit) singlePriceUpdater(pair string, logger *log.Logger, updateCha
 
 func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error, other ...any) {
-		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
+		logger.Printf("%s:singleBookUpdaterRequest, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -155,12 +168,16 @@ func (r *Whitebit) singleBookUpdaterRequest(pair string, logger *log.Logger, upd
 			return
 		}
 		// check for ping
-		if update.Result == "pong" {
+		resultString := new(string)
+		json.Unmarshal(update.Result, resultString)
+		if *resultString == "pong" {
 			continue
 		}
 		// enjoy some hot steamy action with unstructured data
+		result := json.RawMessage{}
+		json.Unmarshal(update.Result, &result)
 		bookUpdate := depthUpdateData{}
-		json.Unmarshal(update.Params[1], &bookUpdate)
+		json.Unmarshal(result, &bookUpdate)
 		asks := parseOrderStrings(bookUpdate.Asks)
 		bids := parseOrderStrings(bookUpdate.Bids)
 
@@ -184,9 +201,10 @@ func parseOrderStrings(orders [][2]string) []models.OrderBookEntry {
 	return entries
 }
 
+// TODO check
 func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
 	errPrinter := func(description string, err error, other ...any) {
-		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
+		logger.Printf("%s:singleBookUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 	conn, err := makeConnection()
 	if err != nil {
@@ -233,12 +251,16 @@ func (r *Whitebit) singleBookUpdater(pair string, logger *log.Logger, updateChan
 			return
 		}
 		// check for ping
-		if update.Result == "pong" {
+		resultString := new(string)
+		json.Unmarshal(update.Result, resultString)
+		if *resultString == "pong" {
 			continue
 		}
 		// enjoy some hot steamy action with unstructured data
+		result := []json.RawMessage{}
+		json.Unmarshal(update.Result, &result)
 		bookUpdate := depthUpdateData{}
-		json.Unmarshal(update.Params[1], &bookUpdate)
+		json.Unmarshal(result[1], &bookUpdate)
 
 		// copy books
 		asks, bids := market.CopyAsksBids()

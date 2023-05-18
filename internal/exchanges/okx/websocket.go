@@ -39,8 +39,8 @@ func (r *Okx) priceUpdater(pairs []string, logger *log.Logger, updateChannel cha
 }
 
 func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel chan<- models.UpdateNotification) {
-	errPrinter := func(description string, err error) {
-		logger.Printf("%s:singlePriceUpdater, %s, %s: %v", r.Name, pair, description, err)
+	errPrinter := func(description string, err error, other ...any) {
+		logger.Printf("%s:singlePriceUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 
 	conn, err := makeConnection()
@@ -98,8 +98,8 @@ func (r *Okx) singlePriceUpdater(pair string, logger *log.Logger, updateChannel 
 }
 
 func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
-	errPrinter := func(description string, err error) {
-		logger.Printf("%s:singleBookUpdater, %s, %s: %v", r.Name, pair, description, err)
+	errPrinter := func(description string, err error, other ...any) {
+		logger.Printf("%s:singleBookUpdater, %s, %s: %v; %v", r.Name, pair, description, err, other)
 	}
 
 	conn, err := makeConnection()
@@ -161,7 +161,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 		clientChecksum := checksum(asks, bids)
 		serverChecksum := uint32(update.Data[0].Checksum)
 		if clientChecksum != serverChecksum {
-			errPrinter("Checksum error", ErrOrderbookDesync)
+			errPrinter("Checksum error", ErrOrderbookDesync, clientChecksum, "!=", serverChecksum)
 			// TODO restart
 			return
 		}
@@ -172,7 +172,7 @@ func (r *Okx) singleBookUpdater(pair string, logger *log.Logger) {
 
 }
 
-func pinger(conn *websocket.Conn, errPrinter func(string, error)) {
+func pinger(conn *websocket.Conn, errPrinter func(string, error, ...any)) {
 	for {
 		err := conn.WriteMessage(websocket.TextMessage, []byte("ping"))
 		if err != nil {
@@ -183,7 +183,7 @@ func pinger(conn *websocket.Conn, errPrinter func(string, error)) {
 	}
 }
 
-func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error)) (ok bool) {
+func subscriptionCheck(conn *websocket.Conn, errPrinter func(string, error, ...any)) (ok bool) {
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		errPrinter("Error reading subscription response", err)

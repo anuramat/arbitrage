@@ -27,10 +27,8 @@ type responseError struct {
 }
 
 type depthUpdate struct {
-	// depth update fields
-	Method string            `json:"method"`
-	Params []json.RawMessage `json:"params"`
-	// ping response fields
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
 	ID     int64           `json:"id"`
 	Result json.RawMessage `json:"result"`
 	Error  *struct{}       `json:"error"`
