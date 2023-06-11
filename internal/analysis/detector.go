@@ -41,7 +41,18 @@ func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 				}
 
 				// calculate absolute profit
-				absoluteProfit := bid.Sub(ask).Div(ask).Mul(decimal.NewFromInt(100))
+				market.OrderBook.RLock()
+				asks := make([]models.OrderBookEntry, len(market.OrderBook.Asks))
+				copy(asks, market.OrderBook.Asks)
+				market.OrderBook.RUnlock()
+
+				market2.OrderBook.RLock()
+				bids := make([]models.OrderBookEntry, len(market2.OrderBook.Bids))
+				copy(bids, market2.OrderBook.Bids)
+				market2.OrderBook.RUnlock()
+
+				absoluteProfit := CalculateAbsoluteProfit(bids, asks)
+
 				if bestProfit.LessThan(absoluteProfit) {
 					bestProfit = absoluteProfit
 					bestBidExchange = market2.Exchange.GetName()
@@ -50,7 +61,6 @@ func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 				}
 			}
 		}
-
 	}
 	if !bestProfit.IsZero() {
 		logger.Printf("Biggest opportunity in absolute terms: %v:%v B:%v/A:%v", bestProfit, bestBidExchange, bestAskExchange, bestPair)
@@ -60,66 +70,36 @@ func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 }
 
 func CalculateAbsoluteProfit(bids, asks []models.OrderBookEntry) decimal.Decimal {
-	// TODO
-	return decimal.Zero
+	i_asks := 0
+	received := decimal.Zero
+	sent := decimal.Zero
+	leftover := asks[0].Amount
+outer:
+	for i_bids := 0; i_bids < len(bids) && i_asks < len(asks); i_bids++ {
+		subtotal := bids[i_bids].Amount
+		for i_asks < len(asks) {
+			if asks[i_asks].Price.GreaterThanOrEqual(bids[i_bids].Price) {
+				break outer
+			}
+			if subtotal.LessThanOrEqual(leftover) {
+				leftover = asks[i_asks].Amount.Sub(subtotal)
+				received = received.Add(subtotal.Mul(bids[i_bids].Price))
+				sent = sent.Add(subtotal.Mul(asks[i_asks].Price))
+				if leftover.IsZero() {
+					i_asks++
+					leftover = asks[i_asks].Amount
+				}
+				break
+			}
+			subtotal = subtotal.Sub(asks[i_asks].Amount)
+			received = received.Add(asks[i_asks].Amount.Mul(bids[i_bids].Price))
+			sent = sent.Add(asks[i_asks].Amount.Mul(asks[i_asks].Price))
+			i_asks++
+			leftover = asks[i_asks].Amount
+		}
+	}
+	if sent.GreaterThanOrEqual(received) {
+		panic("non-positive profit")
+	}
+	return received.Sub(sent)
 }
-
-// func bestAbsoluteOpportunityDetector(freq time.Duration, allMarkets *models.AllMarkets, logger *log.Logger) {
-// 	for pair, markets := range *allMarkets {
-// 		for _, market := range markets {
-
-// 		}
-// 	}
-// }
-
-// update price cells
-// go func() {
-
-// 	for {
-// 		maxProfit := decimal.Zero
-// 		opportunityString := ""
-// 		for row := 1; row < rows; row++ {
-// 			currency := currencyPairs[row-1]
-// 			highestBid := decimal.Zero
-// 			lowestAsk := decimal.NewFromFloat(math.MaxFloat64)
-// 			highestBidExchange := ""
-// 			lowestAskExchange := ""
-// 			currentProfit := decimal.Zero
-// 			for column := 1; column < cols; column++ {
-// 				exchange := exchanges[column-1]
-// 				market, ok := (*exchange.GetMarkets())[currency]
-// 				if !ok {
-// 					continue
-// 				}
-// 				market.BestPrice.RLock()
-// 				ask := market.BestPrice.Ask
-// 				bid := market.BestPrice.Bid
-// 				market.BestPrice.RUnlock()
-
-// 				text := fmt.Sprintf("%v/%v", bid, ask)
-// 				table.GetCell(row, column).SetText(text)
-
-// 				if bid.GreaterThan(highestBid) && !bid.IsZero() {
-// 					highestBid = bid
-// 					highestBidExchange = exchange.GetName()
-// 				}
-// 				if ask.LessThan(lowestAsk) && !ask.IsZero() {
-// 					lowestAsk = ask
-// 					lowestAskExchange = exchange.GetName()
-// 				}
-// 			}
-// 			if highestBid.GreaterThan(decimal.Zero) && lowestAsk.LessThan(decimal.NewFromFloat(math.MaxFloat64)) {
-// 				currentProfit = highestBid.Sub(lowestAsk).Div(lowestAsk).Mul(decimal.NewFromInt(100))
-// 				if currentProfit.GreaterThan(maxProfit) {
-// 					maxProfit = currentProfit
-// 					opportunityString = fmt.Sprintf("%v  %v/%v  %v/%v  %v%%", currency, lowestAsk, highestBid, lowestAskExchange, highestBidExchange, maxProfit)
-// 				}
-// 			}
-// 		}
-// 		if len(opportunityString) != 0 {
-// 			logger.Println(opportunityString)
-// 		}
-// 		app.Draw()
-// 		time.Sleep(1000 * time.Millisecond)
-// 	}
-// }()
