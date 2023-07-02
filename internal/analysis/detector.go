@@ -2,17 +2,28 @@ package analysis
 
 import (
 	"log"
+	"time"
 
 	"github.com/anuramat/arbitrage/internal/models"
 	"github.com/shopspring/decimal"
 )
 
-func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
+func AbsoluteDetector(allMarkets *models.AllMarkets, logger *log.Logger) {
+	for {
+		AbsoluteDetectorOneCycle(allMarkets, logger)
+		// TODO parameterize frequency
+		// TODO rwlock to rlock
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func AbsoluteDetectorOneCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 	// TODO set frequency
 	// basic idea: for current exchange, take its lowest ask, and compare it to the highest bid of all other exchanges
 	// if highest bid is higher than lowest ask, then iterate through orderbooks
 	//
 	bestProfit := decimal.Zero
+	bestAmount := decimal.Zero
 	bestBidExchange := ""
 	bestAskExchange := ""
 	bestPair := ""
@@ -51,10 +62,11 @@ func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 				copy(bids, market2.OrderBook.Bids)
 				market2.OrderBook.RUnlock()
 
-				absoluteProfit := CalculateAbsoluteProfit(bids, asks)
+				profit, amount := CalculateProfit(bids, asks)
 
-				if bestProfit.LessThan(absoluteProfit) {
-					bestProfit = absoluteProfit
+				if bestProfit.LessThan(profit) {
+					bestProfit = profit
+					bestAmount = amount
 					bestBidExchange = market2.Exchange.GetName()
 					bestAskExchange = market.Exchange.GetName()
 					bestPair = pair
@@ -63,19 +75,22 @@ func AbsoluteDetectorCycle(allMarkets *models.AllMarkets, logger *log.Logger) {
 		}
 	}
 	if !bestProfit.IsZero() {
-		logger.Printf("Biggest opportunity in absolute terms: %v:%v B:%v/A:%v", bestProfit, bestBidExchange, bestAskExchange, bestPair)
+		logger.Printf("Biggest opportunity in absolute terms: %v/%v (B:%v/A:%v) [%v]", bestProfit, bestAmount, bestBidExchange, bestAskExchange, bestPair)
 	} else {
 		logger.Printf("No opportunity found")
 	}
 }
 
-func CalculateAbsoluteProfit(bids, asks []models.OrderBookEntry) decimal.Decimal {
+func CalculateProfit(bids, asks []models.OrderBookEntry) (profit, amount decimal.Decimal) {
+	if len(bids) == 0 || len(asks) == 0 {
+		return decimal.Zero, decimal.Zero
+	}
 	i_asks := 0
 	received := decimal.Zero
 	sent := decimal.Zero
 	leftover := asks[0].Amount
 outer:
-	for i_bids := 0; i_bids < len(bids) && i_asks < len(asks); i_bids++ {
+	for i_bids := 0; i_bids < len(bids); i_bids++ {
 		subtotal := bids[i_bids].Amount
 		for i_asks < len(asks) {
 			if asks[i_asks].Price.GreaterThanOrEqual(bids[i_bids].Price) {
@@ -98,8 +113,8 @@ outer:
 			leftover = asks[i_asks].Amount
 		}
 	}
-	if sent.GreaterThanOrEqual(received) {
+	if sent.GreaterThan(received) {
 		panic("non-positive profit")
 	}
-	return received.Sub(sent)
+	return received.Sub(sent), received.Add(sent)
 }

@@ -43,7 +43,7 @@ func main() {
 
 	infoTextView := tview.NewTextView().SetChangedFunc(func() { app.Draw() })
 	infoTextView.SetBorder(true).SetTitle("info").SetTitleAlign(tview.AlignCenter)
-	// infoLogger := log.New(infoTextView, "", log.LstdFlags)
+	infoLogger := log.New(infoTextView, "", log.LstdFlags)
 
 	textViewFlex := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(infoTextView, 0, 2, false).AddItem(debugTextView, 0, 2, false)
 
@@ -68,10 +68,12 @@ func main() {
 
 	// start showing updates
 	go analysis.TableUpdater(&allMarkets, exchanges, app, table, debugLogger, updateChannel)
-	// TODO add detector here
+
+	// start opportunity detector
+	go analysis.AbsoluteDetector(&allMarkets, infoLogger)
 
 	// start tview
-	if err := app.SetRoot(flex, true).SetFocus(debugTextView).Run(); err != nil {
+	if err := app.SetRoot(flex, true).SetFocus(table).Run(); err != nil {
 		panic(err)
 	}
 }
